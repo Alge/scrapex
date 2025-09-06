@@ -1,0 +1,5 @@
+[
+  verbose: true,
+  private: true,
+  skip: []  # Don't skip any security checks
+]
