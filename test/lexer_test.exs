@@ -41,11 +41,6 @@ defmodule LexerTest do
     end
   end
 
-  # test "skip whitespaces" do
-  #   expected = [Token.new(:eof, 1, 1)]
-  #   assert Scrapex.Lexer.tokenize("   ") == expected
-  # end
-
   test "correct line numbers on tokens split across multiple lines" do
     expected = [
       Token.new(:plus, 1, 1),
@@ -121,12 +116,16 @@ defmodule LexerTest do
       ### Identifiers
       {"Hello", :identifier, "Hello"},
       {"hello", :identifier, "hello"},
+      {"x-y", :identifier, "x-y"},
       {"a", :identifier, "a"},
       {"_asd", :identifier, "_asd"},
       {"3d", :identifier, "3d"},
+      {"3_", :identifier, "3_"},
+      {"3-", :identifier, "3-"},
       {"3d__", :identifier, "3d__"},
       {"3__d--", :identifier, "3__d--"},
-      {"abc-123", :identifier, "abc-123"}
+      {"abc-123", :identifier, "abc-123"},
+      {"123-abc", :identifier, "123-abc"}
     ]
 
     for {input, expected_type, expected_value} <- cases do

@@ -5,10 +5,16 @@ defmodule Scrapex.Lexer do
     # # Comments (should be early to avoid conflicts)
     {:comment, ~r/^--.*/},
 
-    # Identifiers needs to be very high up in prio order
+    # Identifiers needs to be very high up in prio order due to wierd rules
+
+    # Identifier Rules:
+    # Allowed: letters (a-z, A-Z), digits (0-9), underscore (_), dash (-)
+    # Cannot start with: dash (-abc)
+    # Cannot be only: single underscore (_) or digits only (123)
+    # Cannot contain: dots or other special characters
+    # Valid: Hello, 3d, _var, abc-123, my_var, 3_
+    # Invalid: _, 123, 1.0, -abc, my.var
     {:identifier, ~r/^(?!_$)(?![0-9]+$)(?![0-9]+\.[0-9]+$)(?!-)[a-zA-Z0-9_-]+/},
-    # {:identifier, ~r/^(?:[a-zA-Z0-9][a-zA-Z0-9_-]*|_[a-zA-Z0-9_-]+)/},
-    # {:identifier, ~r/^[a-zA-Z0-9_][a-zA-Z0-9_-]*/},
 
     # # Multi-character operators (longer first)
     {:double_plus, ~r/^\+\+/},
