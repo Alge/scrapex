@@ -1,64 +1,66 @@
 defmodule Scrapex.Lexer do
   alias Scrapex.Token
 
-  @token_patterns [
-    # # Comments (should be early to avoid conflicts)
-    {:comment, ~r/^--.*/},
+  defp token_patterns do
+    [
+      # # Comments (should be early to avoid conflicts)
+      {:comment, ~r/^--.*/},
 
-    # Identifiers needs to be very high up in prio order due to wierd rules
+      # Identifiers needs to be very high up in prio order due to wierd rules
 
-    # Identifier Rules:
-    # Allowed: letters (a-z, A-Z), digits (0-9), underscore (_), dash (-)
-    # Cannot start with: dash (-abc)
-    # Cannot be only: single underscore (_) or digits only (123)
-    # Cannot contain: dots or other special characters
-    # Valid: Hello, 3d, _var, abc-123, my_var, 3_
-    # Invalid: _, 123, 1.0, -abc, my.var
-    {:identifier, ~r/^(?!_$)(?![0-9]+$)(?![0-9]+\.[0-9]+$)(?!-)[a-zA-Z0-9_-]+/},
+      # Identifier Rules:
+      # Allowed: letters (a-z, A-Z), digits (0-9), underscore (_), dash (-)
+      # Cannot start with: dash (-abc)
+      # Cannot be only: single underscore (_) or digits only (123)
+      # Cannot contain: dots or other special characters
+      # Valid: Hello, 3d, _var, abc-123, my_var, 3_
+      # Invalid: _, 123, 1.0, -abc, my.var
+      {:identifier, ~r/^(?!_$)(?![0-9]+$)(?![0-9]+\.[0-9]+$)(?!-)[a-zA-Z0-9_-]+/},
 
-    # # Multi-character operators (longer first)
-    {:double_plus, ~r/^\+\+/},
-    {:append, ~r/^\+</},
-    {:right_arrow, ~r/^->/},
-    {:double_colon, ~r/^::/},
-    {:double_dot, ~r/^\.\./},
-    {:pipe_forward, ~r/^>>/},
+      # # Multi-character operators (longer first)
+      {:double_plus, ~r/^\+\+/},
+      {:append, ~r/^\+</},
+      {:right_arrow, ~r/^->/},
+      {:double_colon, ~r/^::/},
+      {:double_dot, ~r/^\.\./},
+      {:pipe_forward, ~r/^>>/},
 
-    # # Literals (longer/more specific first)
-    # {:interpolated_text, ~r/^"([^`]*`[^`]*`)+[^`]*"/},
-    {:text, ~r/^"[^"]*"/},
-    {:base64, ~r/^~~[A-Za-z0-9+\/]*={0,2}/},
-    {:hexbyte, ~r/^~[0-9a-fA-F]{1,2}/},
-    {:float, ~r/^\d+\.\d+/},
-    {:integer, ~r/^\d+/},
+      # # Literals (longer/more specific first)
+      # {:interpolated_text, ~r/^"([^`]*`[^`]*`)+[^`]*"/},
+      {:text, ~r/^"[^"]*"/},
+      {:base64, ~r/^~~[A-Za-z0-9+\/]*={0,2}/},
+      {:hexbyte, ~r/^~[0-9a-fA-F]{1,2}/},
+      {:float, ~r/^\d+\.\d+/},
+      {:integer, ~r/^\d+/},
 
-    # # Single character operators
-    {:pipe, ~r/^\|/},
-    {:hashtag, ~r/^#/},
-    {:semicolon, ~r/^;/},
-    {:colon, ~r/^:/},
-    {:equals, ~r/^=/},
-    {:plus, ~r/^\+/},
-    {:minus, ~r/^-/},
-    {:slash, ~r/^\//},
-    {:multiply, ~r/^\*/},
-    {:greater_than, ~r/^>/},
-    {:less_than, ~r/^</},
-    {:left_paren, ~r/^\(/},
-    {:right_paren, ~r/^\)/},
-    {:left_brace, ~r/^\{/},
-    {:right_brace, ~r/^\}/},
-    {:left_bracket, ~r/^\[/},
-    {:right_bracket, ~r/^\]/},
-    {:dot, ~r/^\./},
-    {:comma, ~r/^,/},
-    {:underscore, ~r/^_/},
-    {:exclamation_mark, ~r/^!/},
+      # # Single character operators
+      {:pipe, ~r/^\|/},
+      {:hashtag, ~r/^#/},
+      {:semicolon, ~r/^;/},
+      {:colon, ~r/^:/},
+      {:equals, ~r/^=/},
+      {:plus, ~r/^\+/},
+      {:minus, ~r/^-/},
+      {:slash, ~r/^\//},
+      {:multiply, ~r/^\*/},
+      {:greater_than, ~r/^>/},
+      {:less_than, ~r/^</},
+      {:left_paren, ~r/^\(/},
+      {:right_paren, ~r/^\)/},
+      {:left_brace, ~r/^\{/},
+      {:right_brace, ~r/^\}/},
+      {:left_bracket, ~r/^\[/},
+      {:right_bracket, ~r/^\]/},
+      {:dot, ~r/^\./},
+      {:comma, ~r/^,/},
+      {:underscore, ~r/^_/},
+      {:exclamation_mark, ~r/^!/},
 
-    # # Whitespace (handle last)
-    {:newline, ~r/^\r?\n/},
-    {:whitespace, ~r/^[^\S\r\n]+/}
-  ]
+      # # Whitespace (handle last)
+      {:newline, ~r/^\r?\n/},
+      {:whitespace, ~r/^[^\S\r\n]+/}
+    ]
+  end
 
   @spec tokenize(String.t()) :: list(Token.t())
   def tokenize(input) do
@@ -83,8 +85,8 @@ defmodule Scrapex.Lexer do
   end
 
   defp match_next_token(input) do
-    # Try each pattern until one matches
-    Enum.find_value(@token_patterns, :no_match, fn {type, pattern} ->
+    # Try each pattern until one matches - now using the function instead of module attribute
+    Enum.find_value(token_patterns(), :no_match, fn {type, pattern} ->
       case Regex.run(pattern, input) do
         [match] -> {:ok, type, match, String.length(match)}
         nil -> nil
