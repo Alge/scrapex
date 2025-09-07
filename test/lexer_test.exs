@@ -73,7 +73,8 @@ defmodule LexerTest do
       {"\"1234\"", :text, "1234"},
 
       # Interpolated text:
-      {"\"hello` \"🐸\" `frog\"", :interpolated_text, "hello` \"🐸\" `frog"},
+      {~s("hello` "🐸" `frog"), :interpolated_text, ~s(hello` "🐸" `frog)},
+      # {"\"hello` \"🐸\" `frog\"", :interpolated_text, "hello` \"🐸\" `frog"},
 
       # Base64 tokens
       {"~~SGVsbG8gdGhlcmUh=", :base64, "SGVsbG8gdGhlcmUh="},
@@ -136,7 +137,7 @@ defmodule LexerTest do
       {"org/project/module", :identifier, "org/project/module"},
 
       # Hole literal
-      {"()", :hole, nil},
+      {"()", :hole, nil}
     ]
 
     for {input, expected_type, expected_value} <- cases do

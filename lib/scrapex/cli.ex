@@ -4,14 +4,22 @@ defmodule Scrapex.CLI do
   """
 
   require Logger
-  alias Scrapex.{Lexer, Token}
+  alias Scrapex.{Lexer, Token, Parser}
 
   def main(args) do
     case args do
-      ["--help"] -> print_help()
-      ["-h"] -> print_help()
-      [] -> read_stdin()
-      [filename] -> read_file(filename)
+      ["--help"] ->
+        print_help()
+
+      ["-h"] ->
+        print_help()
+
+      [] ->
+        read_stdin()
+
+      [filename] ->
+        read_file(filename)
+
       _ ->
         IO.puts("Error: Too many arguments. Use --help for usage.")
         System.halt(1)
@@ -25,10 +33,25 @@ defmodule Scrapex.CLI do
 
   defp read_file(filename) do
     case File.read(filename) do
-      {:ok, content} -> process_input(content, filename)
+      {:ok, content} ->
+        process_input(content, filename)
+
       {:error, reason} ->
         IO.puts("Error reading file '#{filename}': #{reason}")
         System.halt(1)
+    end
+  end
+
+  def process_input(input) do
+    case Parser.parse(input) do
+      # {:ok, ast} ->
+      #   # Do something with the successful result
+      #   Logger.info("Successfully parsed!")
+      #   Logger.info(ast)
+
+      {:error, reason} ->
+        # Handle the expected failure case
+        IO.puts("Error: #{reason}")
     end
   end
 
@@ -58,6 +81,7 @@ defmodule Scrapex.CLI do
 
   defp print_help do
     Logger.info("Hello there!")
+
     IO.puts("""
     Scrapex - A simple lexer
 

@@ -9,25 +9,54 @@ defmodule Scrapex.Token do
   @typedoc """
   All possible token types that can appear in ScrapScript source.
   """
+  # End of file
   @type token_type ::
-          # End of file
           :eof
           # Literals
-          | :integer | :float | :text | :interpolated_text
-          | :hexbyte | :base64 | :hole
+          | :integer
+          | :float
+          | :text
+          | :interpolated_text
+          | :hexbyte
+          | :base64
+          | :hole
           # Identifiers
           | :identifier
           # Single character operators
-          | :plus | :minus | :multiply | :slash | :equals
-          | :less_than | :greater_than | :pipe | :colon
-          | :semicolon | :dot | :comma | :underscore
-          | :exclamation_mark | :hashtag | :at
+          | :plus
+          | :minus
+          | :multiply
+          | :slash
+          | :equals
+          | :less_than
+          | :greater_than
+          | :pipe
+          | :colon
+          | :semicolon
+          | :dot
+          | :comma
+          | :underscore
+          | :exclamation_mark
+          | :hashtag
+          | :at
           # Brackets and parentheses
-          | :left_paren | :right_paren | :left_brace | :right_brace
-          | :left_bracket | :right_bracket
+          | :left_paren
+          | :right_paren
+          | :left_brace
+          | :right_brace
+          | :left_bracket
+          | :right_bracket
           # Multi-character operators
-          | :double_plus | :append | :cons | :right_arrow | :double_arrow
-          | :double_colon | :double_dot | :pipe_forward | :pipe_operator | :rock
+          | :double_plus
+          | :append
+          | :cons
+          | :right_arrow
+          | :double_arrow
+          | :double_colon
+          | :double_dot
+          | :pipe_forward
+          | :pipe_operator
+          | :rock
 
   @typedoc """
   A lexical token with its value and source position.
@@ -54,7 +83,8 @@ defmodule Scrapex.Token do
   Creates a new token with a value (like identifiers, numbers).
   """
   @spec new(token_type(), term(), pos_integer(), pos_integer()) :: t()
-  def new(type, value, line, column) when is_atom(type) and is_integer(line) and is_integer(column) do
+  def new(type, value, line, column)
+      when is_atom(type) and is_integer(line) and is_integer(column) do
     %__MODULE__{type: type, value: value, line: line, column: column}
   end
 
@@ -73,27 +103,47 @@ defmodule Scrapex.Token do
   @doc """
   Checks if a token is of a specific type.
   """
-  @spec is_type?(t(), token_type()) :: boolean()
-  def is_type?(%__MODULE__{type: type}, expected_type), do: type == expected_type
+  @spec type?(t(), token_type()) :: boolean()
+  def type?(%__MODULE__{type: type}, expected_type), do: type == expected_type
 
   @doc """
   Checks if a token is a literal value.
   """
-  @spec is_literal?(t()) :: boolean()
-  def is_literal?(%__MODULE__{type: type}) do
+  @spec literal?(t()) :: boolean()
+  def literal?(%__MODULE__{type: type}) do
     type in [:integer, :float, :text, :interpolated_text, :hexbyte, :base64, :hole]
   end
 
   @doc """
   Checks if a token is an operator.
   """
-  @spec is_operator?(t()) :: boolean()
-  def is_operator?(%__MODULE__{type: type}) do
+  @spec operator?(t()) :: boolean()
+  def operator?(%__MODULE__{type: type}) do
     type in [
-      :plus, :minus, :multiply, :slash, :equals, :less_than, :greater_than,
-      :pipe, :colon, :semicolon, :dot, :exclamation_mark, :hashtag, :at,
-      :double_plus, :append, :cons, :right_arrow, :double_arrow,
-      :double_colon, :double_dot, :pipe_forward, :pipe_operator, :rock
+      :plus,
+      :minus,
+      :multiply,
+      :slash,
+      :equals,
+      :less_than,
+      :greater_than,
+      :pipe,
+      :colon,
+      :semicolon,
+      :dot,
+      :exclamation_mark,
+      :hashtag,
+      :at,
+      :double_plus,
+      :append,
+      :cons,
+      :right_arrow,
+      :double_arrow,
+      :double_colon,
+      :double_dot,
+      :pipe_forward,
+      :pipe_operator,
+      :rock
     ]
   end
 end

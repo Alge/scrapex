@@ -16,7 +16,8 @@ defmodule Scrapex.Lexer do
       # Cannot contain: double slashes (abc//def)
       # Valid: Hello, 3d, _var, abc-123, my_var, 3_, connie2036/echo, bytes/to-utf8-text
       # Invalid: _, 123, 1.0, -abc, *var, abc/, /abc, abc//def
-      {:identifier, ~r/^(?!_$)(?![0-9]+$)(?![0-9]+\.[0-9]+$)(?!-)(?!\/)(?!.*\/\/)(?!.*\/$)[a-zA-Z0-9_][a-zA-Z0-9_-]*(?:\/[a-zA-Z0-9_][a-zA-Z0-9_-]*)*/},
+      {:identifier,
+       ~r/^(?!_$)(?![0-9]+$)(?![0-9]+\.[0-9]+$)(?!-)(?!\/)(?!.*\/\/)(?!.*\/$)[a-zA-Z0-9_][a-zA-Z0-9_-]*(?:\/[a-zA-Z0-9_][a-zA-Z0-9_-]*)*/},
 
       # # Multi-character operators (longer first)
       {:double_plus, ~r/^\+\+/},
@@ -129,7 +130,7 @@ defmodule Scrapex.Lexer do
   end
 
   defp process_token(type, value, input, tokens, line, col, length)
-      when type in [:text, :interpolated_text] do
+       when type in [:text, :interpolated_text] do
     token = Token.new(type, String.slice(value, 1..-2//1), line, col)
     rest = String.slice(input, length..-1//1)
     scan_tokens(rest, [token | tokens], line, col + length)

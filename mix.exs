@@ -34,7 +34,6 @@ defmodule Scrapex.MixProject do
         # Removed: all_warnings (default warnings are fine)
       ],
 
-
       # Test coverage settings
       test_coverage: [tool: ExCoveralls],
       preferred_cli_env: [
