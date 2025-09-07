@@ -8,6 +8,7 @@ defmodule Scrapex.MixProject do
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
+      escript: escript(),
       aliases: aliases(),
 
       # Balanced Dialyzer settings (not maximum strictness)
@@ -33,6 +34,7 @@ defmodule Scrapex.MixProject do
         # Removed: all_warnings (default warnings are fine)
       ],
 
+
       # Test coverage settings
       test_coverage: [tool: ExCoveralls],
       preferred_cli_env: [
@@ -42,6 +44,13 @@ defmodule Scrapex.MixProject do
         "coveralls.post": :test,
         "coveralls.html": :test
       ]
+    ]
+  end
+
+  defp escript do
+    [
+      main_module: Scrapex.CLI,
+      name: "scrapex"
     ]
   end
 

@@ -1,5 +1,6 @@
 defmodule Scrapex.Lexer do
   alias Scrapex.Token
+  require Logger
 
   defp token_patterns do
     [
