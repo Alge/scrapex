@@ -3,10 +3,10 @@
 (* ======================================== *)
 
 (* --- Top-Level Structure --- *)
-(* A program consists of one or more expressions, separated by ";" *)
+(* A program consists of zero or more expressions, separated by ";" *)
 (* At the end of a program there might be any number of semicolons (including 0) *)
 
-program ::= expression (";" expression)* ";"*
+program ::= [expression (";" expression)*] ";"*
 
 (* --- Expressions ---*)
 (* Expressions consist of a prefix expression followed by any number *)
@@ -16,7 +16,7 @@ expression ::= prefix_expression (infix_operation)*
 
 pattern_match_expression ::= ("|" pattern "->" expression)+
 
-pattern ::= literal_pattern
+pattern ::= literal
           | IDENTIFIER  
           | "_"
           | list_pattern
@@ -44,6 +44,7 @@ prefix_expression ::= IDENTIFIER
                     | literal
                     | pattern_match_expression
                     | record_expression
+                    | variant_construction
                     | list_literal
                     | function_application
 
@@ -54,15 +55,17 @@ list_literal ::= "[" [ expression ("," expression)* ] "]"
 record_expression ::= "{" [record_field ("," record_field)*] "}"
 record_field ::= IDENTIFIER "=" expression | ".." expression
 
+variant_construction ::= IDENTIFIER "::" IDENTIFIER prefix_expression*
+
 unary_expression ::= prefix_operator expression
 
 (* Binary expressions are implicit from the above, as *)
 (* "expression infix_operator expression" already matches the rules *)
 
 infix_operator ::= ";" | "=" | ":" | "::" | "->" | "=>" | "+" | "-" | "*" | "/" 
-                 | "++" | "+<" | ">+" | ">>"
+                 | "++" | "+<" | ">+" | ">>" | "|>" | "."
 
-prefix_operator ::= "-" | "!" | "#"
+prefix_operator ::= "-" | "!" | "#" | "$$" | "@"
 
 literal ::= INTEGER | FLOAT | TEXT | HEX_BYTE | BASE64 | HOLE
 
@@ -75,14 +78,16 @@ literal ::= INTEGER | FLOAT | TEXT | HEX_BYTE | BASE64 | HOLE
 (* | ;      | Infix | 1      | Right                       *)
 (* | =      | Infix | 2      | Right                       *)
 (* | :      | Infix | 3      | Right                       *)
-(* | =>     | Infix | 4      | Right                       *)
-(* | >>     | Infix | 5      | Left                        *)
-(* | ->     | Infix | 6      | Right                       *)
-(* | ::     | Infix | 7      | Left                        *)
-(* | ++     | Infix | 8      | Right                       *)
+(* | |>     | Infix | 4      | Left                        *)
+(* | =>     | Infix | 5      | Right                       *)
+(* | >>     | Infix | 6      | Left                        *)
+(* | ->     | Infix | 7      | Right                       *)
+(* | ::     | Infix | 8      | Left                        *)
+(* | ++     | Infix | 9      | Right                       *)
 (* | + -    | Infix | 10     | Left                        *)
 (* | +< >+  | Infix | 11     | Left                        *)
 (* | * /    | Infix | 20     | Left                        *)
-(* | - ! #  | Prefix| 30     | (N/A - Right)               *)
+(* | - ! # $$ @ | Prefix| 30 | (N/A - Right)               *)
+(* | .      | Infix | 35     | Left                        *)
 (* | App    | Infix | 40     | Left (implicit)             *)
 (* ------------------------------------------------------- *)
