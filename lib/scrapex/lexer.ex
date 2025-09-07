@@ -8,7 +8,6 @@ defmodule Scrapex.Lexer do
       {:comment, ~r/^--.*/},
 
       # Identifiers needs to be very high up in prio order due to wierd rules
-
       # Identifier Rules:
       # Allowed: letters (a-z, A-Z), digits (0-9), underscore (_), dash (-)
       # Cannot start with: dash (-abc)
@@ -27,7 +26,7 @@ defmodule Scrapex.Lexer do
       {:pipe_forward, ~r/^>>/},
 
       # # Literals (longer/more specific first)
-      # {:interpolated_text, ~r/^"([^`]*`[^`]*`)+[^`]*"/},
+      {:interpolated_text, ~r/^"(?:[^`]*`[^`]*`)+[^`]*"/},
       {:text, ~r/^"[^"]*"/},
       {:base64, ~r/^~~[A-Za-z0-9+\/]*={0,2}/},
       {:hexbyte, ~r/^~[0-9a-fA-F]{1,2}/},
@@ -57,7 +56,8 @@ defmodule Scrapex.Lexer do
       {:underscore, ~r/^_/},
       {:exclamation_mark, ~r/^!/},
 
-      # # Whitespace (handle last)
+      # Whitespace (handle last). These are not emitted but the lexer, but we
+      # need to keep track of them to track lines/columns correctly!
       {:newline, ~r/^\r?\n/},
       {:whitespace, ~r/^[^\S\r\n]+/}
     ]
@@ -81,6 +81,7 @@ defmodule Scrapex.Lexer do
 
       :no_match ->
         char = String.first(input)
+        Logger.error("Unexpected character '#{char}' at line #{line}, column #{col}")
         raise "Unexpected character '#{char}' at line #{line}, column #{col}"
     end
   end
@@ -120,8 +121,9 @@ defmodule Scrapex.Lexer do
     scan_tokens(rest, [token | tokens], line, col + length)
   end
 
-  defp process_token(:text, value, input, tokens, line, col, length) do
-    token = Token.new(:text, String.slice(value, 1..-2//1), line, col)
+  defp process_token(type, value, input, tokens, line, col, length)
+      when type in [:text, :interpolated_text] do
+    token = Token.new(type, String.slice(value, 1..-2//1), line, col)
     rest = String.slice(input, length..-1//1)
     scan_tokens(rest, [token | tokens], line, col + length)
   end

@@ -3,6 +3,8 @@ defmodule Scrapex.Token do
   Represents a lexical token in ScrapScript source code.
   """
 
+  require Logger
+
   @typedoc """
   Token types that can appear in ScrapScript source.
   """
@@ -32,17 +34,19 @@ defmodule Scrapex.Token do
   Creates a new token without a value (like EOF, punctuation).
   """
   def new(type, line, column) when is_atom(type) do
+    Logger.debug("Creatng '#{type}' token")
     %__MODULE__{type: type, line: line, column: column}
   end
 
-  def new(type, value, line, column) when is_atom(type) do
-    %__MODULE__{type: type, value: value, line: line, column: column}
-  end
+  # def new(type, value, line, column) when is_atom(type) do
+  #   %__MODULE__{type: type, value: value, line: line, column: column}
+  # end
 
   @doc """
   Creates a new token with a value (like identifiers, numbers).
   """
   def new(type, value, line, column) when is_atom(type) do
+    Logger.debug("Creatng '#{type}' token: #{value}")
     %__MODULE__{type: type, value: value, line: line, column: column}
   end
 end

@@ -72,6 +72,9 @@ defmodule LexerTest do
        "Text can contain wierd characters, !-0123+*/%&"},
       {"\"1234\"", :text, "1234"},
 
+      # Interpolated text:
+      {"\"hello` \"🐸\" `frog\"", :interpolated_text, "hello` \"🐸\" `frog"},
+
       # Base64 tokens
       {"~~SGVsbG8gdGhlcmUh=", :base64, "SGVsbG8gdGhlcmUh="},
       # Short string with double '==' padding
