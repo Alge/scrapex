@@ -9,21 +9,27 @@ defmodule Scrapex.Lexer do
 
       # Identifiers needs to be very high up in prio order due to wierd rules
       # Identifier Rules:
-      # Allowed: letters (a-z, A-Z), digits (0-9), underscore (_), dash (-)
-      # Cannot start with: dash (-abc)
+      # Allowed: letters (a-z, A-Z), digits (0-9), underscore (_), dash (-), forward slash (/)
+      # Cannot start with: dash (-abc) or slash (/abc)
       # Cannot be only: single underscore (_) or digits only (123)
-      # Cannot contain: dots or other special characters
-      # Valid: Hello, 3d, _var, abc-123, my_var, 3_
-      # Invalid: _, 123, 1.0, -abc, my.var
-      {:identifier, ~r/^(?!_$)(?![0-9]+$)(?![0-9]+\.[0-9]+$)(?!-)[a-zA-Z0-9_-]+/},
+      # Cannot end with: slash (abc/)
+      # Cannot contain: double slashes (abc//def)
+      # Valid: Hello, 3d, _var, abc-123, my_var, 3_, connie2036/echo, bytes/to-utf8-text
+      # Invalid: _, 123, 1.0, -abc, *var, abc/, /abc, abc//def
+      {:identifier, ~r/^(?!_$)(?![0-9]+$)(?![0-9]+\.[0-9]+$)(?!-)(?!\/)(?!.*\/\/)(?!.*\/$)[a-zA-Z0-9_][a-zA-Z0-9_-]*(?:\/[a-zA-Z0-9_][a-zA-Z0-9_-]*)*/},
 
       # # Multi-character operators (longer first)
       {:double_plus, ~r/^\+\+/},
       {:append, ~r/^\+</},
+      {:cons, ~r/^\>\+/},
       {:right_arrow, ~r/^->/},
+      {:double_arrow, ~r/^=>/},
       {:double_colon, ~r/^::/},
       {:double_dot, ~r/^\.\./},
       {:pipe_forward, ~r/^>>/},
+      {:pipe_operator, ~r/^\|\>/},
+      {:rock, ~r/^\$\$/},
+      {:hole, ~r/^\(\)/},
 
       # # Literals (longer/more specific first)
       {:interpolated_text, ~r/^"(?:[^`]*`[^`]*`)+[^`]*"/},
@@ -55,6 +61,7 @@ defmodule Scrapex.Lexer do
       {:comma, ~r/^,/},
       {:underscore, ~r/^_/},
       {:exclamation_mark, ~r/^!/},
+      {:at, ~r/^@/},
 
       # Whitespace (handle last). These are not emitted but the lexer, but we
       # need to keep track of them to track lines/columns correctly!

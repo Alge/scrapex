@@ -36,8 +36,8 @@ defmodule LexerTest do
   end
 
   test "Invalid character raises error" do
-    assert_raise RuntimeError, "Unexpected character '@' at line 1, column 1", fn ->
-      Lexer.tokenize("@")
+    assert_raise RuntimeError, "Unexpected character '&' at line 1, column 1", fn ->
+      Lexer.tokenize("&")
     end
   end
 
@@ -128,7 +128,15 @@ defmodule LexerTest do
       {"3d__", :identifier, "3d__"},
       {"3__d--", :identifier, "3__d--"},
       {"abc-123", :identifier, "abc-123"},
-      {"123-abc", :identifier, "123-abc"}
+      {"123-abc", :identifier, "123-abc"},
+      # Namespaced identifiers
+      {"connie2036/echo", :identifier, "connie2036/echo"},
+      {"bytes/to-utf8-text", :identifier, "bytes/to-utf8-text"},
+      {"list/first", :identifier, "list/first"},
+      {"org/project/module", :identifier, "org/project/module"},
+
+      # Hole literal
+      {"()", :hole, nil},
     ]
 
     for {input, expected_type, expected_value} <- cases do
@@ -163,6 +171,7 @@ defmodule LexerTest do
       {",", :comma},
       {"_", :underscore},
       {"!", :exclamation_mark},
+      {"@", :at},
       {"/", :slash}
     ]
 
@@ -180,9 +189,13 @@ defmodule LexerTest do
     cases = [
       {"++", :double_plus},
       {"+<", :append},
+      {">+", :cons},
       {"->", :right_arrow},
+      {"=>", :double_arrow},
       {"::", :double_colon},
       {"..", :double_dot},
+      {"$$", :rock},
+      {"|>", :pipe_operator},
       {">>", :pipe_forward}
     ]
 

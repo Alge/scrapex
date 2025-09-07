@@ -1,0 +1,88 @@
+(* ======================================== *)
+(*     The ScrapScript Language Grammar     *)
+(* ======================================== *)
+
+(* --- Top-Level Structure --- *)
+(* A program consists of one or more expressions, separated by ";" *)
+(* At the end of a program there might be any number of semicolons (including 0) *)
+
+program ::= expression (";" expression)* ";"*
+
+(* --- Expressions ---*)
+(* Expressions consist of a prefix expression followed by any number *)
+(* of infix operations. This corresponds to the Pratt parser implemented *)
+
+expression ::= prefix_expression (infix_operation)*
+
+pattern_match_expression ::= ("|" pattern "->" expression)+
+
+pattern ::= literal_pattern
+          | IDENTIFIER  
+          | "_"
+          | list_pattern
+          | record_pattern
+          | variant_pattern
+          | text_pattern
+
+list_pattern ::= "[" "]"
+               | "[" pattern ("," pattern)* "]" 
+               | "[" pattern ("," pattern)* "]" "++" pattern
+               | pattern ">+" pattern
+
+text_pattern ::= TEXT "++" pattern
+
+variant_pattern ::= "#" IDENTIFIER [pattern]*
+
+record_pattern ::= "{" [record_pattern_field ("," record_pattern_field)*] "}"
+record_pattern_field ::= IDENTIFIER "=" pattern | ".." pattern
+
+infix_operation ::= infix_operator expression
+
+prefix_expression ::= IDENTIFIER
+                    | unary_expression  
+                    | "(" expression ")"
+                    | literal
+                    | pattern_match_expression
+                    | record_expression
+                    | list_literal
+                    | function_application
+
+function_application ::= prefix_expression (prefix_expression)+
+
+list_literal ::= "[" [ expression ("," expression)* ] "]"
+
+record_expression ::= "{" [record_field ("," record_field)*] "}"
+record_field ::= IDENTIFIER "=" expression | ".." expression
+
+unary_expression ::= prefix_operator expression
+
+(* Binary expressions are implicit from the above, as *)
+(* "expression infix_operator expression" already matches the rules *)
+
+infix_operator ::= ";" | "=" | ":" | "::" | "->" | "=>" | "+" | "-" | "*" | "/" 
+                 | "++" | "+<" | ">+" | ">>"
+
+prefix_operator ::= "-" | "!" | "#"
+
+literal ::= INTEGER | FLOAT | TEXT | HEX_BYTE | BASE64 | HOLE
+
+(* ======================================================= *)
+(*   Precedence and Associativity Table                    *)
+(* ======================================================= *)
+(* ------------------------------------------------------- *)
+(* | Operator | Type  | Precedence | Associativity         *)
+(* ------------------------------------------------------- *)
+(* | ;      | Infix | 1      | Right                       *)
+(* | =      | Infix | 2      | Right                       *)
+(* | :      | Infix | 3      | Right                       *)
+(* | =>     | Infix | 4      | Right                       *)
+(* | >>     | Infix | 5      | Left                        *)
+(* | ->     | Infix | 6      | Right                       *)
+(* | ::     | Infix | 7      | Left                        *)
+(* | ++     | Infix | 8      | Right                       *)
+(* | + -    | Infix | 10     | Left                        *)
+(* | +< >+  | Infix | 11     | Left                        *)
+(* | * /    | Infix | 20     | Left                        *)
+(* | - ! #  | Prefix| 30     | (N/A - Right)               *)
+(* | App    | Infix | 40     | Left (implicit)             *)
+(* ------------------------------------------------------- *)
