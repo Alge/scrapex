@@ -14,6 +14,10 @@ program ::= [expression (";" expression)*] ";"*
 
 expression ::= prefix_expression (infix_operation)*
 
+(* Type annotations are just a expression with a ":" operator *)
+(* expression ::= type_annotation | prefix_expression (infix_operation)* *)
+(* type_annotation ::= prefix_expression ":" type_definition *)
+
 pattern_match_expression ::= ("|" pattern "->" expression)+
 
 pattern ::= literal
@@ -47,6 +51,33 @@ prefix_expression ::= IDENTIFIER
                     | variant_construction
                     | list_literal
                     | function_application
+                    | variant_literal
+
+
+(* The top-level rule for a type definition. *)
+type_definition ::= [generic_params] variant_declaration+
+
+(* The optional generic parameters, e.g., "e => v =>" *)
+generic_params ::= (IDENTIFIER "=>")+
+
+(* A single variant in a definition, e.g., "#ok v" or "#vanilla" *)
+variant_declaration ::= "#" IDENTIFIER type_expression*
+
+(* The rule for a type, which handles functions, records, and grouping. *)
+type_expression ::= primary_type_expression ["->" type_expression]
+
+(* The "atomic" parts of a type expression. *)
+primary_type_expression ::= IDENTIFIER
+                          | record_type
+                          | "(" type_expression ")"
+
+
+(* The syntax for a record type, e.g., "{ name : text }" *)
+record_type ::= "{" [record_type_field ("," record_type_field)*] "}"
+record_type_field ::= IDENTIFIER ":" type_expression
+
+(* A simple variant used as a value, e.g., "#true" *)
+variant_literal ::= "#" IDENTIFIER
 
 function_application ::= prefix_expression (prefix_expression)+
 
@@ -62,12 +93,12 @@ unary_expression ::= prefix_operator expression
 (* Binary expressions are implicit from the above, as *)
 (* "expression infix_operator expression" already matches the rules *)
 
-infix_operator ::= ";" | "=" | ":" | "::" | "->" | "=>" | "+" | "-" | "*" | "/" 
+infix_operator ::= ";" | "=" | ":" | "::" | "->" | "+" | "-" | "*" | "/" 
                  | "++" | "+<" | ">+" | ">>" | "|>" | "."
 
 prefix_operator ::= "-" | "!" | "#" | "$$" | "@"
 
-literal ::= INTEGER | FLOAT | TEXT | HEX_BYTE | BASE64 | HOLE
+literal ::= INTEGER | FLOAT | TEXT | INTERPOLATED_TEXT | HEX_BYTE | BASE64 | HOLE
 
 (* ======================================================= *)
 (*   Precedence and Associativity Table                    *)
@@ -79,7 +110,6 @@ literal ::= INTEGER | FLOAT | TEXT | HEX_BYTE | BASE64 | HOLE
 (*   =           | Infix | 2      | Right                  *)
 (*   :           | Infix | 3      | Right                  *)
 (*   |>          | Infix | 4      | Left                   *)
-(*   =>          | Infix | 5      | Right                  *)
 (*   >>          | Infix | 6      | Left                   *)
 (*   ->          | Infix | 7      | Right                  *)
 (*   ::          | Infix | 8      | Left                   *)
