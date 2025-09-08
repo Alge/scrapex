@@ -39,7 +39,7 @@ defmodule Scrapex.AST.Literal do
   def interpolated_text(value), do: {:interpolated_text, value}
 
   @doc "Create a hex byte literal"
-  def hex_byte(value), do: {:hex_byte, value}
+  def hexbyte(value), do: {:hexbyte, value}
 
   @doc "Create a base64 literal"
   def base64(value), do: {:base64, value}

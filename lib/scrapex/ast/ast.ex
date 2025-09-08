@@ -25,7 +25,7 @@ defmodule Scrapex.AST do
   defdelegate float(value), to: Literal
   defdelegate text(value), to: Literal
   defdelegate interpolated_text(value), to: Literal
-  defdelegate hex_byte(value), to: Literal
+  defdelegate hexbyte(value), to: Literal
   defdelegate base64(value), to: Literal
   defdelegate hole(), to: Literal
 

@@ -4,9 +4,3 @@ defmodule Scrapex.AST.Program do
 
   def new(expressions), do: {:program, expressions}
 end
-
-defmodule Scrapex.AST.Identifier do
-  @type t :: {:identifier, name :: String.t()}
-
-  def new(name), do: {:identifier, name}
-end

@@ -43,7 +43,7 @@ defmodule Scrapex.CLI do
   end
 
   def process_input(input) do
-    case Parser.parse(input) do
+    case Parser.parse_program(input) do
       # {:ok, ast} ->
       #   # Do something with the successful result
       #   Logger.info("Successfully parsed!")
