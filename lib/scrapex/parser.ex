@@ -1,8 +1,14 @@
-defmodule Scrapex.Parser do
-  alias Scrapex.{Token, AST}
+# lib/scrapex/parser.ex
 
+defmodule Scrapex.Parser do
+  alias Scrapex.{AST, Token}
+
+  @doc """
+  The main entry point for the parser.
+  Parses a list of tokens into a single expression AST.
+  """
   def parse(token_list) when is_list(token_list) do
-    # First, handle the edge case of empty or effectively empty input.
+    # Handle the edge case of empty or effectively empty input.
     if token_list == [] or hd(token_list).type == :eof do
       {:error, "Empty input"}
     else
@@ -10,7 +16,6 @@ defmodule Scrapex.Parser do
       case parse_expression(token_list, 0) do
         # The success case: we got an expression and the ONLY thing left is EOF.
         {:ok, expression_ast, [%Token{type: :eof} | _]} ->
-          # We return the expression AST directly, no program wrapper.
           {:ok, expression_ast}
 
         # Error Case 1: We parsed an expression, but there's junk left over.
@@ -24,13 +29,18 @@ defmodule Scrapex.Parser do
     end
   end
 
-  def parse_expression(token_list, precedence_context) do
+  # =============================================================================
+  # PRIVATE PARSING LOGIC
+  # =============================================================================
+
+  # --- Expression Orchestrator (Pratt Parser Core) ---
+
+  defp parse_expression(token_list, precedence_context) do
+    # Step 1: Always parse the left-hand/prefix part of the expression first.
     case parse_prefix_expression(token_list) do
-      {:ok, left_ast, rest} ->
-        # Check for the optional infix?
-        # This would mean that we check for a operator here
-        # so something like case next where next in operators?
-        parse_infix_expression(rest, left_ast, precedence_context)
+      {:ok, left_ast, rest_after_prefix} ->
+        # Step 2: Start the infix loop with the result from step 1.
+        parse_infix_expression(rest_after_prefix, left_ast, precedence_context)
 
       {:error, reason} ->
         {:error, reason}
@@ -39,7 +49,6 @@ defmodule Scrapex.Parser do
 
   defp parse_infix_expression(token_list, left_ast, precedence_context) do
     if token_list == [] or hd(token_list).type == :eof do
-      # The expression is just the prefix part.
       {:ok, left_ast, token_list}
     else
       next_token = hd(token_list)
@@ -50,68 +59,78 @@ defmodule Scrapex.Parser do
         rest_after_operator = tl(token_list)
 
         case parse_expression(rest_after_operator, next_precedence) do
-          # The recursive call succeeded. This is the "happy path".
           {:ok, right_ast, rest_after_rhs} ->
             new_left_ast = AST.binary_op(left_ast, operator_token.type, right_ast)
-            # Continue the loop as before.
             parse_infix_expression(rest_after_rhs, new_left_ast, precedence_context)
 
-          # The recursive call failed to find a right-hand side.
           {:error, reason} ->
-            # This is a syntax error. We stop parsing and pass the error up.
             {:error, reason}
         end
       else
-        # The loop is done. The `left_ast` we've built up is the final expression.
         {:ok, left_ast, token_list}
       end
     end
   end
 
-  defp parse_prefix_expression([%Token{type: :eof} | _rest]) do
+  # --- Prefix Expression Dispatcher ---
+
+  defp parse_prefix_expression([first_token | _] = token_list) do
+    parse_prefix(first_token.type, token_list)
+  end
+
+  defp parse_prefix_expression([]) do
     {:error, "Unexpected end of file, expected an expression"}
   end
 
-  defp parse_prefix_expression([%Token{type: :left_paren} | rest]) do
-    parse_grouped_expression(rest)
-  end
+  # --- Prefix Expression Workers ---
 
-  defp parse_prefix_expression([%Token{type: :integer, value: value} | rest]) do
+  defp parse_prefix(:integer, [%Token{value: value} | rest]) do
     {:ok, AST.integer(value), rest}
   end
 
-  defp parse_prefix_expression([%Token{type: :float, value: value} | rest]) do
+  defp parse_prefix(:float, [%Token{value: value} | rest]) do
     {:ok, AST.float(value), rest}
   end
 
-  defp parse_prefix_expression([%Token{type: :identifier, value: value} | rest]) do
+  defp parse_prefix(:identifier, [%Token{value: value} | rest]) do
     {:ok, AST.identifier(value), rest}
   end
 
-  defp parse_prefix_expression([%Token{type: :hexbyte, value: value} | rest]) do
+  defp parse_prefix(:hexbyte, [%Token{value: value} | rest]) do
     {:ok, AST.hexbyte(value), rest}
   end
 
-  defp parse_prefix_expression([%Token{type: :base64, value: value} | rest]) do
+  defp parse_prefix(:base64, [%Token{value: value} | rest]) do
     {:ok, AST.base64(value), rest}
   end
 
-  defp parse_prefix_expression([%Token{type: :text, value: value} | rest]) do
+  defp parse_prefix(:text, [%Token{value: value} | rest]) do
     {:ok, AST.text(value), rest}
   end
 
-  defp parse_prefix_expression([%Token{type: :interpolated_text, value: value} | rest]) do
+  defp parse_prefix(:interpolated_text, [%Token{value: value} | rest]) do
     {:ok, AST.interpolated_text(value), rest}
   end
 
-  defp parse_prefix_expression([%Token{type: :hole} | rest]) do
+  defp parse_prefix(:hole, [_token | rest]) do
     {:ok, AST.hole(), rest}
   end
 
-  # The catch-all error clause remains the same.
-  defp parse_prefix_expression([unhandled | _]) do
-    {:error, "Unexpected token at start of expression: #{Token.to_string(unhandled)}"}
+  defp parse_prefix(:left_paren, [_token | rest]) do
+    parse_grouped_expression(rest)
   end
+
+  # Handles prefix operators like `-` and `!`
+  defp parse_prefix(type, token_list) when type in [:minus, :exclamation_mark, :hashtag, :rock, :at] do
+    parse_unary_expression(token_list)
+  end
+
+  # The catch-all for any token type we don't know how to start an expression with.
+  defp parse_prefix(_type, [token | _]) do
+    {:error, "Unexpected token at start of expression: #{Token.to_string(token)}"}
+  end
+
+  # --- Prefix Expression Helpers ---
 
   defp parse_grouped_expression(token_list) do
     case parse_expression(token_list, 0) do
@@ -119,11 +138,21 @@ defmodule Scrapex.Parser do
         case rest_after_inner do
           [%Token{type: :right_paren} | rest_after_paren] ->
             {:ok, inner_ast, rest_after_paren}
-
           _ ->
-            {:error, "Expected right parenthesis"}
+            {:error, "Mismatched parentheses: expected ')'"}
         end
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
 
+  defp parse_unary_expression([operator_token | rest_of_tokens]) do
+    prefix_precedence = 30 # From the precedence table
+
+    case parse_expression(rest_of_tokens, prefix_precedence) do
+      {:ok, operand_ast, rest_after_operand} ->
+        ast_node = AST.unary_op(operator_token.type, operand_ast)
+        {:ok, ast_node, rest_after_operand}
       {:error, reason} ->
         {:error, reason}
     end
@@ -133,48 +162,23 @@ defmodule Scrapex.Parser do
   # PRECEDENCE HELPER
   # =============================================================================
 
-  # Returns the infix precedence (binding power) for a given token.
-  # Higher numbers mean higher precedence.
-  # Returns 0 if the token is not an infix operator.
   defp get_infix_precedence(%Token{type: type}) do
     case type do
       :semicolon -> 1
-      # Precedence 2
       :equals -> 2
-      # Precedence 3
       :colon -> 3
-      # Precedence 4
-      # |>
-      :pipe_operator -> 4
-      # Precedence 6
-      # >>
-      :pipe_forward -> 6
-      # Precedence 7
-      # ->
-      :right_arrow -> 7
-      # Precedence 8
-      # ::
-      :double_colon -> 8
-      # Precedence 9
-      # ++
-      :double_plus -> 9
-      # Precedence 10
+      :pipe_operator -> 4 # |>
+      :pipe_forward -> 6 # >>
+      :right_arrow -> 7 # ->
+      :double_colon -> 8 # ::
+      :double_plus -> 9 # ++
       :plus -> 10
       :minus -> 10
-      # Precedence 11
-      # +<
-      :append -> 11
-      # >+
-      :cons -> 11
-      # Precedence 20
+      :append -> 11 # +<
+      :cons -> 11 # >+
       :multiply -> 20
       :slash -> 20
-      # Precedence 35
       :dot -> 35
-      # Precedence 40 (This is a special case, handled implicitly by the parser loop)
-      # We don't have a specific token for "App", so we don't list it here.
-
-      # Default case for any token that is not an infix operator
       _ -> 0
     end
   end

@@ -78,8 +78,8 @@ defmodule Scrapex.AST do
   @doc "Convenience for creating record rest patterns"
   def rest(pattern), do: Pattern.record_rest(pattern)
 
-  #@doc "Create a simple function call"
-  #def call(func_name, args) when is_binary(func_name) do
+  # @doc "Create a simple function call"
+  # def call(func_name, args) when is_binary(func_name) do
   #  Expression.function_application(identifier(func_name), args)
-  #end
+  # end
 end

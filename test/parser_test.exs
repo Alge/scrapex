@@ -123,4 +123,43 @@ defmodule Scrapex.ParserTest do
 
     assert {:error, _reason} = Parser.parse(input)
   end
+
+  test "parses a simple unary negation expression" do
+    # Input represents the code "-123"
+    input = [
+      Token.new(:minus, 1, 1),
+      Token.new(:integer, 123, 1, 2),
+      Token.new(:eof, 1, 5)
+    ]
+
+    # The expected AST is a unary operation node wrapping the integer.
+    expected =
+      AST.unary_op(
+        :minus,
+        AST.integer(123)
+      )
+
+    assert {:ok, result} = Parser.parse(input)
+    assert result == expected
+  end
+
+  # test "parses a simple function application" do
+  #   # Input represents "f x"
+  #   input = [
+  #     Token.new(:identifier, "f", 1, 1),
+  #     Token.new(:identifier, "x", 1, 3),
+  #     Token.new(:eof, 1, 4)
+  #   ]
+
+  #   # The expected AST is a function_application node.
+  #   # (You will need to add this node to your AST.Expression module)
+  #   expected =
+  #     AST.function_application(
+  #       AST.identifier("f"),
+  #       [AST.identifier("x")]
+  #     )
+
+  #   assert {:ok, result} = Parser.parse(input)
+  #   assert result == expected
+  # end
 end
