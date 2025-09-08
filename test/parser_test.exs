@@ -22,29 +22,6 @@ defmodule Scrapex.ParserTest do
     assert result == expected
   end
 
-  # test "parses a program ending with multiple semicolons" do
-  #   # Input represents the code "123;;;;;"
-  #   input = [
-  #     Token.new(:integer, 123, 1, 1),
-  #     Token.new(:semicolon, 1, 4),
-  #     Token.new(:semicolon, 1, 4),
-  #     Token.new(:semicolon, 1, 4),
-  #     Token.new(:eof, 1, 8)
-  #   ]
-
-  #   # # The final AST should be a single Program node containing a
-  #   # # list of the two integer expressions.
-  #   # expected =
-  #   #   AST.program([
-  #   #     AST.expression(AST.integer(123), nil)
-  #   #   ])
-
-  #   # assert {:ok, result} = Parser.parse_program(input)
-  #   # assert result == expected
-  #   assert {:error, _reason} = Parser.parse_program(input)
-
-  # end
-
   @literal_cases [
     # Integers
     {:integer, 123, AST.integer(123)},
