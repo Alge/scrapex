@@ -51,162 +51,161 @@ defmodule LexerTest do
     assert Lexer.tokenize("+\n+") == expected
   end
 
-  test "tokenize combined values" do
-    cases = [
-      # Integers
-      {"1", :integer, 1},
-      {"123", :integer, 123},
-      {"0", :integer, 0},
+  @combined_values_cases [
+    # Integers
+    {"1", :integer, 1},
+    {"123", :integer, 123},
+    {"0", :integer, 0},
 
-      # Floats
-      {"1.0", :float, 1.0},
-      {"0.0", :float, 0.0},
-      {"12312313.12321312", :float, 12_312_313.12321312},
+    # Floats
+    {"1.0", :float, 1.0},
+    {"0.0", :float, 0.0},
+    {"12312313.12321312", :float, 12_312_313.12321312},
 
-      # Text
-      {"\"\"", :text, ""},
-      {"\"a\"", :text, "a"},
-      {"\"hello\"", :text, "hello"},
-      {"\"This is text!\"", :text, "This is text!"},
-      {"\"Text can contain wierd characters, !-0123+*/%&\"", :text,
-       "Text can contain wierd characters, !-0123+*/%&"},
-      {"\"1234\"", :text, "1234"},
+    # Text
+    {"\"\"", :text, ""},
+    {"\"a\"", :text, "a"},
+    {"\"hello\"", :text, "hello"},
+    {"\"This is text!\"", :text, "This is text!"},
+    {"\"Text can contain wierd characters, !-0123+*/%&\"", :text,
+     "Text can contain wierd characters, !-0123+*/%&"},
+    {"\"1234\"", :text, "1234"},
 
-      # Interpolated text:
-      {~s("hello` "🐸" `frog"), :interpolated_text, ~s(hello` "🐸" `frog)},
-      # {"\"hello` \"🐸\" `frog\"", :interpolated_text, "hello` \"🐸\" `frog"},
+    # Interpolated text:
+    {~s("hello` "🐸" `frog"), :interpolated_text, ~s(hello` "🐸" `frog)},
+    # {"\"hello` \"🐸\" `frog\"", :interpolated_text, "hello` \"🐸\" `frog"},
 
-      # Base64 tokens
-      {"~~SGVsbG8gdGhlcmUh=", :base64, "SGVsbG8gdGhlcmUh="},
-      # Short string with double '==' padding
-      {"~~TQ==", :base64, "TQ=="},
+    # Base64 tokens
+    {"~~SGVsbG8gdGhlcmUh=", :base64, "SGVsbG8gdGhlcmUh="},
+    # Short string with double '==' padding
+    {"~~TQ==", :base64, "TQ=="},
 
-      # String with no padding required
-      {"~~TWFu", :base64, "TWFu"},
+    # String with no padding required
+    {"~~TWFu", :base64, "TWFu"},
 
-      # String containing the special '+' and '/' characters
-      {"~~+/+", :base64, "+/+"},
+    # String containing the special '+' and '/' characters
+    {"~~+/+", :base64, "+/+"},
 
-      # A longer, complex string mixing cases, numbers, and symbols
-      {"~~RWxpeGlyL1Bob2VuaXgrT1RQIHJvY2tzIQ==", :base64, "RWxpeGlyL1Bob2VuaXgrT1RQIHJvY2tzIQ=="},
+    # A longer, complex string mixing cases, numbers, and symbols
+    {"~~RWxpeGlyL1Bob2VuaXgrT1RQIHJvY2tzIQ==", :base64, "RWxpeGlyL1Bob2VuaXgrT1RQIHJvY2tzIQ=="},
 
-      # Edge Case - An empty Base64 string (just the prefix)
-      {"~~", :base64, ""},
+    # Edge Case - An empty Base64 string (just the prefix)
+    {"~~", :base64, ""},
 
-      # String composed only of numbers
-      {"~~MTIzNDU2", :base64, "MTIzNDU2"},
+    # String composed only of numbers
+    {"~~MTIzNDU2", :base64, "MTIzNDU2"},
 
-      # Another padding example to be sure
-      {"~~bGlnaHQgd29yaw==", :base64, "bGlnaHQgd29yaw=="},
+    # Another padding example to be sure
+    {"~~bGlnaHQgd29yaw==", :base64, "bGlnaHQgd29yaw=="},
 
-      ### HEX bytes
-      {"~FF", :hexbyte, "FF"},
-      {"~0F", :hexbyte, "0F"},
-      {"~F0", :hexbyte, "F0"},
-      {"~AB", :hexbyte, "AB"},
-      {"~9C", :hexbyte, "9C"},
+    ### HEX bytes
+    {"~FF", :hexbyte, "FF"},
+    {"~0F", :hexbyte, "0F"},
+    {"~F0", :hexbyte, "F0"},
+    {"~AB", :hexbyte, "AB"},
+    {"~9C", :hexbyte, "9C"},
 
-      # Same but lower case
-      {"~ff", :hexbyte, "FF"},
-      {"~0f", :hexbyte, "0F"},
-      {"~f0", :hexbyte, "F0"},
-      {"~ab", :hexbyte, "AB"},
-      {"~9c", :hexbyte, "9C"},
+    # Same but lower case
+    {"~ff", :hexbyte, "FF"},
+    {"~0f", :hexbyte, "0F"},
+    {"~f0", :hexbyte, "F0"},
+    {"~ab", :hexbyte, "AB"},
+    {"~9c", :hexbyte, "9C"},
 
-      # Only zeroes
-      {"~00", :hexbyte, "00"},
-      {"~0", :hexbyte, "0"},
+    # Only zeroes
+    {"~00", :hexbyte, "00"},
+    {"~0", :hexbyte, "0"},
 
-      ### Identifiers
-      {"Hello", :identifier, "Hello"},
-      {"hello", :identifier, "hello"},
-      {"x-y", :identifier, "x-y"},
-      {"a", :identifier, "a"},
-      {"_asd", :identifier, "_asd"},
-      {"3d", :identifier, "3d"},
-      {"3_", :identifier, "3_"},
-      {"3-", :identifier, "3-"},
-      {"3d__", :identifier, "3d__"},
-      {"3__d--", :identifier, "3__d--"},
-      {"abc-123", :identifier, "abc-123"},
-      {"123-abc", :identifier, "123-abc"},
-      # Namespaced identifiers
-      {"connie2036/echo", :identifier, "connie2036/echo"},
-      {"bytes/to-utf8-text", :identifier, "bytes/to-utf8-text"},
-      {"list/first", :identifier, "list/first"},
-      {"org/project/module", :identifier, "org/project/module"},
+    ### Identifiers
+    {"Hello", :identifier, "Hello"},
+    {"hello", :identifier, "hello"},
+    {"x-y", :identifier, "x-y"},
+    {"a", :identifier, "a"},
+    {"_asd", :identifier, "_asd"},
+    {"3d", :identifier, "3d"},
+    {"3_", :identifier, "3_"},
+    {"3-", :identifier, "3-"},
+    {"3d__", :identifier, "3d__"},
+    {"3__d--", :identifier, "3__d--"},
+    {"abc-123", :identifier, "abc-123"},
+    {"123-abc", :identifier, "123-abc"},
+    # Namespaced identifiers
+    {"connie2036/echo", :identifier, "connie2036/echo"},
+    {"bytes/to-utf8-text", :identifier, "bytes/to-utf8-text"},
+    {"list/first", :identifier, "list/first"},
+    {"org/project/module", :identifier, "org/project/module"},
 
-      # Hole literal
-      {"()", :hole, nil}
-    ]
+    # Hole literal
+    {"()", :hole, nil}
+  ]
 
-    for {input, expected_type, expected_value} <- cases do
+  for {input, expected_type, expected_value} <- @combined_values_cases do
+    test "Tokenize combined value: #{input} #{inspect(expected_type)}" do
       expected = [
-        Token.new(expected_type, expected_value, 1, 1),
-        Token.new(:eof, 1, String.length(input) + 1)
+        Token.new(unquote(expected_type), unquote(expected_value), 1, 1),
+        Token.new(:eof, 1, String.length(unquote(input)) + 1)
       ]
 
-      assert Lexer.tokenize(input) == expected
+      assert Lexer.tokenize(unquote(input)) == expected
     end
   end
 
-  test "tokenizes single character operators" do
-    cases = [
-      {"+", :plus},
-      {"(", :left_paren},
-      {")", :right_paren},
-      {"-", :minus},
-      {"*", :multiply},
-      {"|", :pipe},
-      {";", :semicolon},
-      {":", :colon},
-      {"=", :equals},
-      {"#", :hashtag},
-      {"<", :less_than},
-      {">", :greater_than},
-      {"{", :left_brace},
-      {"}", :right_brace},
-      {"[", :left_bracket},
-      {"]", :right_bracket},
-      {".", :dot},
-      {",", :comma},
-      {"_", :underscore},
-      {"!", :exclamation_mark},
-      {"@", :at},
-      {"/", :slash}
-    ]
+  @tokanize_single_char_operator_cases [
+    {"+", :plus},
+    {"(", :left_paren},
+    {")", :right_paren},
+    {"-", :minus},
+    {"*", :multiply},
+    {"|", :pipe},
+    {";", :semicolon},
+    {":", :colon},
+    {"=", :equals},
+    {"#", :hashtag},
+    {"<", :less_than},
+    {">", :greater_than},
+    {"{", :left_brace},
+    {"}", :right_brace},
+    {"[", :left_bracket},
+    {"]", :right_bracket},
+    {".", :dot},
+    {",", :comma},
+    {"_", :underscore},
+    {"!", :exclamation_mark},
+    {"@", :at},
+    {"/", :slash}
+  ]
 
-    for {input, expected_type} <- cases do
+  for {input, expected_type} <- @tokanize_single_char_operator_cases do
+    test "tokenizes single character operators #{input}, #{inspect(expected_type)}" do
       expected = [
-        Token.new(expected_type, 1, 1),
+        Token.new(unquote(expected_type), 1, 1),
         Token.new(:eof, 1, 2)
       ]
 
-      assert Lexer.tokenize(input) == expected
+      assert Lexer.tokenize(unquote(input)) == expected
     end
   end
 
-  test "tokenizes multi character operators" do
-    cases = [
-      {"++", :double_plus},
-      {"+<", :append},
-      {">+", :cons},
-      {"->", :right_arrow},
-      {"=>", :double_arrow},
-      {"::", :double_colon},
-      {"..", :double_dot},
-      {"$$", :rock},
-      {"|>", :pipe_operator},
-      {">>", :pipe_forward}
-    ]
-
-    for {input, expected_type} <- cases do
+  @tokenize_multi_char_operator_cases [
+    {"++", :double_plus},
+    {"+<", :append},
+    {">+", :cons},
+    {"->", :right_arrow},
+    {"=>", :double_arrow},
+    {"::", :double_colon},
+    {"..", :double_dot},
+    {"$$", :rock},
+    {"|>", :pipe_operator},
+    {">>", :pipe_forward}
+  ]
+  for {input, expected_type} <- @tokenize_multi_char_operator_cases do
+    test "tokenizes multi character operators #{input}, #{inspect(expected_type)}" do
       expected = [
-        Token.new(expected_type, 1, 1),
-        Token.new(:eof, 1, String.length(input) + 1)
+        Token.new(unquote(expected_type), 1, 1),
+        Token.new(:eof, 1, String.length(unquote(input)) + 1)
       ]
 
-      assert Lexer.tokenize(input) == expected
+      assert Lexer.tokenize(unquote(input)) == expected
     end
   end
 end
