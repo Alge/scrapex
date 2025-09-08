@@ -1,36 +1,27 @@
 defmodule Scrapex.Parser do
   alias Scrapex.{Token, AST}
 
-  def parse_program([]) do
-    {:error, "Empty input"}
-  end
 
-  def parse_program([%Token{type: :eof}]) do
-    {:error, "Empty input"}
-  end
+  def parse(token_list) when is_list(token_list) do
+    # First, handle the edge case of empty or effectively empty input.
+    if token_list == [] or hd(token_list).type == :eof do
+      {:error, "Empty input"}
+    else
+      # The main logic: parse one full expression, starting with precedence 0.
+      case parse_expression(token_list, 0) do
+        # The success case: we got an expression and the ONLY thing left is EOF.
+        {:ok, expression_ast, [%Token{type: :eof} | _]} ->
+          # We return the expression AST directly, no program wrapper.
+          {:ok, expression_ast}
 
-  def parse_program(token_list) when is_list(token_list) do
-    parse_program(token_list, [])
-  end
+        # Error Case 1: We parsed an expression, but there's junk left over.
+        {:ok, _expression_ast, [other_token | _]} ->
+          {:error, "Unexpected token after expression: #{Token.to_string(other_token)}"}
 
-  def parse_program(token_list, expressions) when is_list(token_list) when is_list(expressions) do
-    case token_list do
-      [%Token{type: :semicolon} | rest] ->
-        parse_program(rest, expressions)
-
-      [%Token{type: :eof} | _] ->
-        expressions = expressions |> Enum.reverse()
-        program_node = AST.program(expressions)
-        {:ok, program_node}
-
-      _ ->
-        case parse_expression(token_list, 0) do
-          {:ok, expression_ast, rest} ->
-            parse_program(rest, [expression_ast | expressions])
-
-          {:error, reason} ->
-            {:error, reason}
-        end
+        # Error Case 2: The expression parser itself failed.
+        {:error, reason} ->
+          {:error, reason}
+      end
     end
   end
 
@@ -46,6 +37,7 @@ defmodule Scrapex.Parser do
         {:error, reason}
     end
   end
+
 
   def parse_infix_expression(token_list, left_ast, precedence_context) do
     # Before we do anything, check if we're at the end of the file.
@@ -82,6 +74,10 @@ defmodule Scrapex.Parser do
       end
     end
   end
+
+  # defp parse_prefix_expression([%Token{type: :left_paren} | rest]) do
+  #   # todo
+  # end
 
   defp parse_prefix_expression([%Token{type: :integer, value: value} | rest]) do
     prefix_node = AST.integer(value)
@@ -145,6 +141,7 @@ defmodule Scrapex.Parser do
   # Returns 0 if the token is not an infix operator.
   defp get_infix_precedence(%Token{type: type}) do
     case type do
+      :semicolon -> 1
       # Precedence 2
       :equals -> 2
       # Precedence 3

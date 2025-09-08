@@ -2,12 +2,6 @@
 (*     The ScrapScript Language Grammar     *)
 (* ======================================== *)
 
-(* --- Top-Level Structure --- *)
-(* A program consists of zero or more expressions, separated by ";" *)
-(* At the end of a program there might be any number of semicolons (including 0) *)
-
-program ::= [expression (";" expression)*] ";"*
-
 (* --- Expressions ---*)
 (* Expressions consist of a prefix expression followed by any number *)
 (* of infix operations. This corresponds to the Pratt parser implemented *)
