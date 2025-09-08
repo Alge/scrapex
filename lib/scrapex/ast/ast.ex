@@ -53,20 +53,12 @@ defmodule Scrapex.AST do
   defdelegate type_annotation(expression, type), to: Type
 
   # === EXPRESSION CONSTRUCTORS ===
-  defdelegate group_expression(expr), to: Expression
-  defdelegate unary_expression(op, expr), to: Expression
-  defdelegate pattern_match_expression(clauses), to: Expression
-  defdelegate identifier_record_field(id, expr), to: Expression
-  defdelegate anonymous_record_field(expr), to: Expression
-  defdelegate record_expression(fields), to: Expression
-  defdelegate variant_construction(id1, id2, arguments), to: Expression
-  defdelegate list_literal(elements), to: Expression
-  defdelegate function_application(func, args), to: Expression
-  defdelegate infix_operation(op, expr), to: Expression
-  defdelegate expression(prefix, infix), to: Expression
+  defdelegate unary_op(operator, operand), to: Expression
+  defdelegate binary_op(left, operator, right), to: Expression
 
-  # === PROGRAM CONSTRUCTOR ===
-  defdelegate program(expressions), to: Program, as: :new
+  defdelegate group_expression(expression), to: Expression
+  defdelegate list_literal(elements), to: Expression
+  defdelegate pattern_match_expression(clauses), to: Expression
 
   # =============================================================================
   # CONVENIENCE FUNCTIONS
@@ -86,13 +78,8 @@ defmodule Scrapex.AST do
   @doc "Convenience for creating record rest patterns"
   def rest(pattern), do: Pattern.record_rest(pattern)
 
-  @doc "Create a simple binary operation expression"
-  def binary_op(left, op, right) do
-    Expression.expression(left, Expression.infix_operation(op, right))
-  end
-
-  @doc "Create a simple function call"
-  def call(func_name, args) when is_binary(func_name) do
-    Expression.function_application(identifier(func_name), args)
-  end
+  #@doc "Create a simple function call"
+  #def call(func_name, args) when is_binary(func_name) do
+  #  Expression.function_application(identifier(func_name), args)
+  #end
 end

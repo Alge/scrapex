@@ -1,7 +1,6 @@
 defmodule Scrapex.Parser do
   alias Scrapex.{Token, AST}
 
-
   def parse(token_list) when is_list(token_list) do
     # First, handle the edge case of empty or effectively empty input.
     if token_list == [] or hd(token_list).type == :eof do
@@ -38,98 +37,96 @@ defmodule Scrapex.Parser do
     end
   end
 
-
-  def parse_infix_expression(token_list, left_ast, precedence_context) do
-    # Before we do anything, check if we're at the end of the file.
-    # This handles the case where the prefix expression is the last thing.
+  defp parse_infix_expression(token_list, left_ast, precedence_context) do
     if token_list == [] or hd(token_list).type == :eof do
+      # The expression is just the prefix part.
       {:ok, left_ast, token_list}
     else
-      # We can safely peek the next token as we have checked
-      # that it exists and is not a :eof token
       next_token = hd(token_list)
-
-      # Find out the precedence for the next (probable) operator
       next_precedence = get_infix_precedence(next_token)
 
-      # The next operator is stronger than the previous, let's parse it!
       if next_precedence > precedence_context do
         operator_token = next_token
-        # Pop the token from the list
         rest_after_operator = tl(token_list)
 
-        # Recursively find the right side of the expression
-        {:ok, right_ast, right_after_rhs_expression} =
-          parse_expression(rest_after_operator, next_precedence)
+        case parse_expression(rest_after_operator, next_precedence) do
+          # The recursive call succeeded. This is the "happy path".
+          {:ok, right_ast, rest_after_rhs} ->
+            new_left_ast = AST.binary_op(left_ast, operator_token.type, right_ast)
+            # Continue the loop as before.
+            parse_infix_expression(rest_after_rhs, new_left_ast, precedence_context)
 
-        infix_operation = AST.infix_operation(operator_token.type, right_ast)
-
-        new_left_ast = AST.expression(left_ast, infix_operation)
-
-        parse_infix_expression(right_after_rhs_expression, new_left_ast, precedence_context)
+          # The recursive call failed to find a right-hand side.
+          {:error, reason} ->
+            # This is a syntax error. We stop parsing and pass the error up.
+            {:error, reason}
+        end
       else
-        # The next operator is weaker than us, let's return here
-        # There is nothing more for us to do right now.
+        # The loop is done. The `left_ast` we've built up is the final expression.
         {:ok, left_ast, token_list}
       end
     end
   end
 
-  # defp parse_prefix_expression([%Token{type: :left_paren} | rest]) do
-  #   # todo
-  # end
+  defp parse_prefix_expression([%Token{type: :eof} | _rest]) do
+    {:error, "Unexpected end of file, expected an expression"}
+  end
+
+  defp parse_prefix_expression([%Token{type: :left_paren} | rest]) do
+    parse_grouped_expression(rest)
+  end
 
   defp parse_prefix_expression([%Token{type: :integer, value: value} | rest]) do
-    prefix_node = AST.integer(value)
-    ast_node = AST.expression(prefix_node, nil)
-    {:ok, ast_node, rest}
+    {:ok, AST.integer(value), rest}
   end
 
   defp parse_prefix_expression([%Token{type: :float, value: value} | rest]) do
-    prefix_node = AST.float(value)
-    ast_node = AST.expression(prefix_node, nil)
-    {:ok, ast_node, rest}
+    {:ok, AST.float(value), rest}
   end
 
   defp parse_prefix_expression([%Token{type: :identifier, value: value} | rest]) do
-    prefix_node = AST.identifier(value)
-    ast_node = AST.expression(prefix_node, nil)
-    {:ok, ast_node, rest}
+    {:ok, AST.identifier(value), rest}
   end
 
   defp parse_prefix_expression([%Token{type: :hexbyte, value: value} | rest]) do
-    prefix_node = AST.hexbyte(value)
-    ast_node = AST.expression(prefix_node, nil)
-    {:ok, ast_node, rest}
+    {:ok, AST.hexbyte(value), rest}
   end
 
   defp parse_prefix_expression([%Token{type: :base64, value: value} | rest]) do
-    prefix_node = AST.base64(value)
-    ast_node = AST.expression(prefix_node, nil)
-    {:ok, ast_node, rest}
+    {:ok, AST.base64(value), rest}
   end
 
   defp parse_prefix_expression([%Token{type: :text, value: value} | rest]) do
-    prefix_node = AST.text(value)
-    ast_node = AST.expression(prefix_node, nil)
-    {:ok, ast_node, rest}
+    {:ok, AST.text(value), rest}
   end
 
   defp parse_prefix_expression([%Token{type: :interpolated_text, value: value} | rest]) do
-    prefix_node = AST.interpolated_text(value)
-    ast_node = AST.expression(prefix_node, nil)
-    {:ok, ast_node, rest}
+    {:ok, AST.interpolated_text(value), rest}
   end
 
   defp parse_prefix_expression([%Token{type: :hole} | rest]) do
-    prefix_node = AST.hole()
-    ast_node = AST.expression(prefix_node, nil)
-    {:ok, ast_node, rest}
+    {:ok, AST.hole(), rest}
   end
 
   # The catch-all error clause remains the same.
   defp parse_prefix_expression([unhandled | _]) do
     {:error, "Unexpected token at start of expression: #{Token.to_string(unhandled)}"}
+  end
+
+  defp parse_grouped_expression(token_list) do
+    case parse_expression(token_list, 0) do
+      {:ok, inner_ast, rest_after_inner} ->
+        case rest_after_inner do
+          [%Token{type: :right_paren} | rest_after_paren] ->
+            {:ok, inner_ast, rest_after_paren}
+
+          _ ->
+            {:error, "Expected right parenthesis"}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   # =============================================================================

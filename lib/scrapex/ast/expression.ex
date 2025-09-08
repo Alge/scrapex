@@ -1,65 +1,58 @@
+# lib/scrapex/ast/expression.ex
+
 defmodule Scrapex.AST.Expression do
-  alias Scrapex.AST.{Pattern, Literal, Identifier, Type}
+  @moduledoc """
+  AST nodes for ScrapScript expressions.
+  This module uses a traditional operator tree structure.
+  """
 
-  # Expression types
-  @type group_expression :: {:group_expression, expression :: t()}
-  @type unary_expression :: {:unary_expression, operator :: String.t(), expression :: t()}
+  alias Scrapex.AST.{Literal, Identifier, Pattern, Type}
 
-  @type pattern_clause :: {pattern :: Pattern.t(), expression :: t()}
+  # =============================================================================
+  # TYPESPECS
+  # =============================================================================
 
-  @type pattern_match_expression ::
-          {:pattern_match_expression, clauses :: [pattern_clause()]}
+  @typedoc "Represents a unary operation, e.g., -x"
+  @type unary_op :: {:unary_op, operator :: atom(), operand :: t()}
 
-  # Record fields
-  @type identifier_record_field ::
-          {:identifier_record_field, identifier :: Identifier.t(), expression :: t()}
-  @type anonymous_record_field :: {:anonymous_record_field, expression :: t()}
-  @type record_field :: identifier_record_field() | anonymous_record_field()
-  @type record_expression :: {:record_expression, fields :: [record_field()]}
+  @typedoc "Represents a binary operation, e.g., a + b"
+  @type binary_op :: {:binary_op, left :: t(), operator :: atom(), right :: t()}
 
-  # Other expressions
-  @type variant_construction ::
-          {:variant_construction, id1 :: Identifier.t(), id2 :: Identifier.t(),
-           arguments :: [prefix_expression()]}
+  # --- These are other forms of complex expressions ---
+  @typedoc "Represents a parenthesized expression from the source."
+  @type group_expression :: {:group_expression, inner_expression :: t()}
+
+  @typedoc "Represents a pattern matching block, e.g., | a -> 1 | b -> 2"
+  @type pattern_clause :: {Pattern.t(), t()}
+  @type pattern_match_expression :: {:pattern_match_expression, clauses :: [pattern_clause()]}
+
+  @typedoc "Represents a list literal, e.g., [1, 2, 3]"
   @type list_literal :: {:list_literal, elements :: [t()]}
-  @type function_application ::
-          {:function_application, function :: prefix_expression(),
-           arguments :: [prefix_expression()]}
 
-  # Prefix expressions
-  @type prefix_expression ::
-          Identifier.t()
-          | unary_expression()
-          | group_expression()
-          | Literal.t()
-          | pattern_match_expression()
-          | record_expression()
-          | variant_construction()
-          | list_literal()
-          | function_application()
-          | Type.variant_literal()
+  # function_application, etc., here in the same style.
 
-  # Infix operations
-  @type infix_operation :: {:infix_operation, operator :: atom(), expression :: t()}
-
-  # Main expression type
+  @typedoc "The main union type for any valid expression."
+  # Simple, atomic expressions
   @type t ::
-          {:expression, prefix :: prefix_expression(), infix :: infix_operation()}
+          Literal.t()
+          | Identifier.t()
+          | Type.variant_literal()
+          # Structural expressions
+          | unary_op()
+          | binary_op()
+          | group_expression()
+          | list_literal()
+          | pattern_match_expression()
+          # This represents a type annotation like `x : int`
           | Type.type_annotation()
 
   # =============================================================================
   # CONSTRUCTORS
   # =============================================================================
 
-  def group_expression(expr), do: {:group_expression, expr}
-  def unary_expression(op, expr), do: {:unary_expression, op, expr}
-  def pattern_match_expression(clauses), do: {:pattern_match_expression, clauses}
-  def identifier_record_field(id, expr), do: {:identifier_record_field, id, expr}
-  def anonymous_record_field(expr), do: {:anonymous_record_field, expr}
-  def record_expression(fields), do: {:record_expression, fields}
-  def variant_construction(id1, id2, arguments), do: {:variant_construction, id1, id2, arguments}
+  def unary_op(operator, operand), do: {:unary_op, operator, operand}
+  def binary_op(left, operator, right), do: {:binary_op, left, operator, right}
+  def group_expression(expression), do: {:group_expression, expression}
   def list_literal(elements), do: {:list_literal, elements}
-  def function_application(func, args), do: {:function_application, func, args}
-  def infix_operation(op, expr), do: {:infix_operation, op, expr}
-  def expression(prefix, infix), do: {:expression, prefix, infix}
+  def pattern_match_expression(clauses), do: {:pattern_match_expression, clauses}
 end
