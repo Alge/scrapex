@@ -54,11 +54,13 @@ defmodule LexerTest do
   @combined_values_cases [
     # Integers
     {"1", :integer, 1},
+    {"1 ", :integer, 1},
     {"123", :integer, 123},
     {"0", :integer, 0},
 
     # Floats
     {"1.0", :float, 1.0},
+    {"1.0 ", :float, 1.0},
     {"0.0", :float, 0.0},
     {"12312313.12321312", :float, 12_312_313.12321312},
 

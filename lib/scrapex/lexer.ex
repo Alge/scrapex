@@ -16,8 +16,9 @@ defmodule Scrapex.Lexer do
       # Cannot contain: double slashes (abc//def)
       # Valid: Hello, 3d, _var, abc-123, my_var, 3_, connie2036/echo, bytes/to-utf8-text
       # Invalid: _, 123, 1.0, -abc, *var, abc/, /abc, abc//def
-      {:identifier,
-       ~r/^(?!_$)(?![0-9]+$)(?![0-9]+\.[0-9]+$)(?!-)(?!\/)(?!.*\/\/)(?!.*\/$)[a-zA-Z0-9_][a-zA-Z0-9_-]*(?:\/[a-zA-Z0-9_][a-zA-Z0-9_-]*)*/},
+      {:identifier, ~r/^(?!(?:_|[0-9]+|-)(?![a-zA-Z0-9_-]))[a-zA-Z0-9_][a-zA-Z0-9_-]*(?:\/[a-zA-Z0-9_][a-zA-Z0-9_-]*)*(?<!\/)/},
+      #{:identifier,
+      # ~r/^(?!_$)(?![0-9]+$)(?![0-9]+\.[0-9]+$)(?!-)(?!\/)(?!.*\/\/)(?!.*\/$)[a-zA-Z0-9_][a-zA-Z0-9_-]*(?:\/[a-zA-Z0-9_][a-zA-Z0-9_-]*)*/},
 
       # # Multi-character operators (longer first)
       {:double_plus, ~r/^\+\+/},
