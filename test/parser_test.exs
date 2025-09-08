@@ -15,8 +15,8 @@ defmodule Scrapex.ParserTest do
     # list of the two integer expressions.
     expected =
       AST.program([
-        AST.integer(123),
-        AST.integer(456)
+        AST.expression(AST.integer(123), nil),
+        AST.expression(AST.integer(456), nil)
       ])
 
     assert {:ok, result} = Parser.parse_program(input)
@@ -37,7 +37,7 @@ defmodule Scrapex.ParserTest do
     # list of the two integer expressions.
     expected =
       AST.program([
-        AST.integer(123)
+        AST.expression(AST.integer(123), nil)
       ])
 
     assert {:ok, result} = Parser.parse_program(input)
@@ -83,7 +83,10 @@ defmodule Scrapex.ParserTest do
         Token.new(:eof, 1, 2)
       ]
 
-      expected_program_ast = AST.program([unquote(expected_ast)])
+      expression = AST.expression(unquote(expected_ast), nil)
+
+      expected_program_ast = AST.program([expression])
+      # expected_program_ast = AST.program([unquote(expected_ast)])
 
       assert {:ok, result} = Parser.parse_program(input),
              "Failed to parse token: #{unquote(token_type)}"
@@ -91,5 +94,29 @@ defmodule Scrapex.ParserTest do
       assert result == expected_program_ast,
              "Incorrect AST for token: #{unquote(token_type)}"
     end
+  end
+
+  test "parses a simple binary expression" do
+    # Input represents the code "1 + 2"
+    input = [
+      Token.new(:integer, 1, 1, 1),
+      Token.new(:plus, 1, 3),
+      Token.new(:integer, 2, 1, 5),
+      Token.new(:eof, 1, 6)
+    ]
+
+    lhs = AST.expression(AST.integer(1), nil)
+    rhs = AST.expression(AST.integer(2), nil)
+    infix_operation = AST.infix_operation(:plus, rhs)
+
+    expected_expression = AST.expression(lhs, infix_operation)
+
+    expected =
+      AST.program([
+        expected_expression
+      ])
+
+    assert {:ok, result} = Parser.parse_program(input)
+    assert result == expected
   end
 end
