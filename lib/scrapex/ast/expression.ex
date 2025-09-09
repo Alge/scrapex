@@ -29,6 +29,8 @@ defmodule Scrapex.AST.Expression do
   @typedoc "Represents a list literal, e.g., [1, 2, 3]"
   @type list_literal :: {:list_literal, elements :: [t()]}
 
+  @type function_app :: {:function_app, function :: t(), argument :: t()}
+
   # function_application, etc., here in the same style.
 
   @typedoc "The main union type for any valid expression."
@@ -45,6 +47,7 @@ defmodule Scrapex.AST.Expression do
           | pattern_match_expression()
           # This represents a type annotation like `x : int`
           | Type.type_annotation()
+          | function_app()
 
   # =============================================================================
   # CONSTRUCTORS
@@ -55,4 +58,5 @@ defmodule Scrapex.AST.Expression do
   def group_expression(expression), do: {:group_expression, expression}
   def list_literal(elements), do: {:list_literal, elements}
   def pattern_match_expression(clauses), do: {:pattern_match_expression, clauses}
+  def function_app(identifier, argument), do: {:function_app, identifier, argument}
 end

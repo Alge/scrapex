@@ -59,6 +59,7 @@ defmodule Scrapex.AST do
   defdelegate group_expression(expression), to: Expression
   defdelegate list_literal(elements), to: Expression
   defdelegate pattern_match_expression(clauses), to: Expression
+  defdelegate function_app(identifier, argumente), to: Expression
 
   # =============================================================================
   # CONVENIENCE FUNCTIONS

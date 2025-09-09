@@ -54,20 +54,35 @@ defmodule Scrapex.Parser do
       next_token = hd(token_list)
       next_precedence = get_infix_precedence(next_token)
 
-      if next_precedence > precedence_context do
-        operator_token = next_token
-        rest_after_operator = tl(token_list)
+      cond do
+        # There is currently nothing with higher precedence than 40, but let's check
+        # anyways for completeness and to reduce risk of bugs in the future!
+        can_start_function_argument?(next_token) and
+            get_infix_precedence(:function_app) > precedence_context ->
+          case parse_expression(token_list, get_infix_precedence(:function_arg)) do
+            {:ok, expression, remaining_tokens} ->
+              function_app = AST.function_app(left_ast, expression)
+              parse_infix_expression(remaining_tokens, function_app, precedence_context)
 
-        case parse_expression(rest_after_operator, next_precedence) do
-          {:ok, right_ast, rest_after_rhs} ->
-            new_left_ast = AST.binary_op(left_ast, operator_token.type, right_ast)
-            parse_infix_expression(rest_after_rhs, new_left_ast, precedence_context)
+            {:error, reason} ->
+              {:error, reason}
+          end
 
-          {:error, reason} ->
-            {:error, reason}
-        end
-      else
-        {:ok, left_ast, token_list}
+        next_precedence > precedence_context ->
+          operator_token = next_token
+          rest_after_operator = tl(token_list)
+
+          case parse_expression(rest_after_operator, next_precedence) do
+            {:ok, right_ast, rest_after_rhs} ->
+              new_left_ast = AST.binary_op(left_ast, operator_token.type, right_ast)
+              parse_infix_expression(rest_after_rhs, new_left_ast, precedence_context)
+
+            {:error, reason} ->
+              {:error, reason}
+          end
+
+        true ->
+          {:ok, left_ast, token_list}
       end
     end
   end
@@ -121,7 +136,8 @@ defmodule Scrapex.Parser do
   end
 
   # Handles prefix operators like `-` and `!`
-  defp parse_prefix(type, token_list) when type in [:minus, :exclamation_mark, :hashtag, :rock, :at] do
+  defp parse_prefix(type, token_list)
+       when type in [:minus, :exclamation_mark, :hashtag, :rock, :at] do
     parse_unary_expression(token_list)
   end
 
@@ -138,21 +154,25 @@ defmodule Scrapex.Parser do
         case rest_after_inner do
           [%Token{type: :right_paren} | rest_after_paren] ->
             {:ok, inner_ast, rest_after_paren}
+
           _ ->
             {:error, "Mismatched parentheses: expected ')'"}
         end
+
       {:error, reason} ->
         {:error, reason}
     end
   end
 
   defp parse_unary_expression([operator_token | rest_of_tokens]) do
-    prefix_precedence = 30 # From the precedence table
+    # From the precedence table
+    prefix_precedence = 30
 
     case parse_expression(rest_of_tokens, prefix_precedence) do
       {:ok, operand_ast, rest_after_operand} ->
         ast_node = AST.unary_op(operator_token.type, operand_ast)
         {:ok, ast_node, rest_after_operand}
+
       {:error, reason} ->
         {:error, reason}
     end
@@ -162,24 +182,47 @@ defmodule Scrapex.Parser do
   # PRECEDENCE HELPER
   # =============================================================================
 
+  defp get_infix_precedence(:function_app), do: 30
+  defp get_infix_precedence(:function_arg), do: 31
+
   defp get_infix_precedence(%Token{type: type}) do
     case type do
       :semicolon -> 1
       :equals -> 2
       :colon -> 3
-      :pipe_operator -> 4 # |>
-      :pipe_forward -> 6 # >>
-      :right_arrow -> 7 # ->
-      :double_colon -> 8 # ::
-      :double_plus -> 9 # ++
+      # |>
+      :pipe_operator -> 4
+      # >>
+      :pipe_forward -> 6
+      # ->
+      :right_arrow -> 7
+      # ::
+      :double_colon -> 8
+      # ++
+      :double_plus -> 9
       :plus -> 10
       :minus -> 10
-      :append -> 11 # +<
-      :cons -> 11 # >+
+      # +<
+      :append -> 11
+      # >+
+      :cons -> 11
       :multiply -> 20
       :slash -> 20
       :dot -> 35
       _ -> 0
     end
+  end
+
+  defp get_infix_precedence(_), do: 0
+
+  defp can_start_prefix_expression?(%Token{type: token_type}) do
+    AST.Literal.literal?(token_type) or
+      token_type == :identifier or
+      token_type == :left_paren or
+      token_type in [:minus, :exclamation_mark, :hashtag, :rock, :at]
+  end
+
+  defp can_start_function_argument?(token) do
+    can_start_prefix_expression?(token) and get_infix_precedence(token) == 0
   end
 end
