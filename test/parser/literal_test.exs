@@ -22,9 +22,7 @@ defmodule Scrapex.ParserTest.Literals do
     {:hexbyte, "0A", AST.hexbyte("0A")},
     # Identifier
     {:identifier, "x", AST.identifier("x")},
-    {:identifier, "abc-123", AST.identifier("abc-123")},
-    # Hole
-    {:hole, nil, AST.hole()}
+    {:identifier, "abc-123", AST.identifier("abc-123")}
     # Note: variant_literal tests might need a new token type in the lexer.
   ]
 

@@ -64,7 +64,7 @@ defmodule Scrapex.AST.Pattern do
 
   # Record patterns
   @doc "Create a record field pattern"
-  def record_field(identifier, pattern), do: {:field, identifier, pattern}
+  def record_pattern_field(identifier, pattern), do: {:field, identifier, pattern}
 
   @doc "Create a record rest pattern"
   def record_rest(pattern), do: {:rest, pattern}

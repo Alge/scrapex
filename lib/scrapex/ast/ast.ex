@@ -8,13 +8,13 @@ defmodule Scrapex.AST do
   The actual implementations are in focused submodules.
   """
 
-  alias Scrapex.AST.{Literal, Pattern, Identifier, Expression, Program, Type}
+  alias Scrapex.AST.{Literal, Pattern, Identifier, Expression, Type}
 
   # =============================================================================
   # TOP-LEVEL TYPES
   # =============================================================================
 
-  @type astnode :: Literal.t() | Pattern.t() | Identifier.t() | Expression.t() | Program.t()
+  @type astnode :: Literal.t() | Pattern.t() | Identifier.t() | Expression.t()
 
   # =============================================================================
   # DELEGATED FUNCTIONS
@@ -28,6 +28,7 @@ defmodule Scrapex.AST do
   defdelegate hexbyte(value), to: Literal
   defdelegate base64(value), to: Literal
   defdelegate hole(), to: Literal
+  defdelegate literal?(token_type), to: Literal
 
   # === IDENTIFIER CONSTRUCTOR ===
   defdelegate identifier(name), to: Identifier, as: :new
@@ -38,18 +39,19 @@ defmodule Scrapex.AST do
   defdelegate regular_list_pattern(elements), to: Pattern
   defdelegate concat_list_pattern(elements, tail), to: Pattern
   defdelegate cons_list_pattern(head, tail), to: Pattern
-  defdelegate record_field(identifier, pattern), to: Pattern
+  defdelegate record_pattern_field(identifier, pattern), to: Pattern
   defdelegate record_rest(pattern), to: Pattern
   defdelegate record_pattern(fields), to: Pattern
   defdelegate variant_pattern(identifier, patterns), to: Pattern
   defdelegate text_pattern(text, pattern), to: Pattern
 
   # === TYPE CONSTRUCTORS ===
+  defdelegate variant(name), to: Type
+  defdelegate variant(name, payload), to: Type
+  defdelegate type_union(variants), to: Type
   defdelegate variant_literal(identifier), to: Type
   defdelegate function_type(from, to), to: Type
   defdelegate record_type(fields), to: Type
-  defdelegate variant_declaration(identifier, carries), to: Type
-  defdelegate type_definition(generics, variants), to: Type
   defdelegate type_annotation(expression, type), to: Type
 
   # === EXPRESSION CONSTRUCTORS ===
@@ -58,8 +60,12 @@ defmodule Scrapex.AST do
 
   defdelegate group_expression(expression), to: Expression
   defdelegate list_literal(elements), to: Expression
+  defdelegate pattern_clause(pattern, expression), to: Expression
   defdelegate pattern_match_expression(clauses), to: Expression
   defdelegate function_app(identifier, argumente), to: Expression
+  defdelegate type_declaration(name, variants), to: Expression
+  defdelegate record_literal(fields), to: Expression
+  defdelegate record_field(identifier, expression), to: Expression
 
   # =============================================================================
   # CONVENIENCE FUNCTIONS

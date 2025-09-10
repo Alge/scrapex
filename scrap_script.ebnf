@@ -8,9 +8,9 @@
 
 expression ::= prefix_expression (infix_operation)*
 
-(* Type annotations are just a expression with a ":" operator *)
+(* Type declarations are just a expression with a ":" operator *)
 (* expression ::= type_annotation | prefix_expression (infix_operation)* *)
-(* type_annotation ::= prefix_expression ":" type_definition *)
+(* type_declaration ::= prefix_expression ":" type_definition *)
 
 pattern_match_expression ::= ("|" pattern "->" expression)+
 
@@ -112,6 +112,7 @@ literal ::= INTEGER | FLOAT | TEXT | INTERPOLATED_TEXT | HEX_BYTE | BASE64 | HOL
 (*   +< >+       | Infix | 11     | Left                   *)
 (*   * /         | Infix | 20     | Left                   *)
 (*   - ! # $$ @  | Prefix| 30     | (N/A - Right)          *)
+(*   Function App| Infix | 30     | Left (implicit)        *)
+(*   Function arg| Infix | 31     | Left (implicit)        *)
 (*   .           | Infix | 35     | Left                   *)
-(*   App         | Infix | 40     | Left (implicit)        *)
 (* ------------------------------------------------------- *)

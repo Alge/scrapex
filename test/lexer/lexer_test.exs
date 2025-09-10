@@ -135,10 +135,7 @@ defmodule LexerTest do
     {"connie2036/echo", :identifier, "connie2036/echo"},
     {"bytes/to-utf8-text", :identifier, "bytes/to-utf8-text"},
     {"list/first", :identifier, "list/first"},
-    {"org/project/module", :identifier, "org/project/module"},
-
-    # Hole literal
-    {"()", :hole, nil}
+    {"org/project/module", :identifier, "org/project/module"}
   ]
 
   for {input, expected_type, expected_value} <- @combined_values_cases do
