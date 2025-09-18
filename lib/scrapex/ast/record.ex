@@ -6,14 +6,15 @@ defmodule Scrapex.AST.Record do
   alias Scrapex.AST.Pattern
 
   # --- TYPESPECS ---
-  @type expression_field :: {:expression_field, Identifier.t(), Expression.t()}
-  @type pattern_field :: {:pattern_field, Identifier.t(), Pattern.t()}
+  @type record_expression_field :: {:expression_field, Identifier.t(), Expression.t()}
+  @type record_pattern_field :: {:pattern_field, Identifier.t(), Pattern.t()}
 
   @type spread_expression :: {:spread_expression, expression :: Expression.t()}
   @type record_rest :: {:record_rest, Pattern.t()}
 
-  @type record_literal :: {:record_literal, fields :: [expression_field() | spread_expression()]}
-  @type record_pattern :: {:record_pattern, fields :: [pattern_field() | record_rest()]}
+  @type record_literal ::
+          {:record_literal, fields :: [record_expression_field() | spread_expression()]}
+  @type record_pattern :: {:record_pattern, fields :: [record_pattern_field() | record_rest()]}
 
   # --- CONSTRUCTORS ---
   def record_literal(fields), do: {:record_literal, fields}

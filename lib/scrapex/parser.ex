@@ -362,7 +362,7 @@ defmodule Scrapex.Parser do
       ] ->
         case parse_expression(rest, 0) do
           {:ok, expression, rest} ->
-            field = AST.record_field(AST.identifier(key_name), expression)
+            field = AST.record_expression_field(AST.identifier(key_name), expression)
             {:ok, field, rest}
 
           # Something went wrong while parsing the expression

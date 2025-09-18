@@ -209,7 +209,7 @@ defmodule Scrapex.Parser.PatternTest do
         AST.pattern_match_expression([
           AST.pattern_clause(
             AST.record_pattern([
-              AST.record_field(AST.identifier("a"), AST.integer(1))
+              AST.record_expression_field(AST.identifier("a"), AST.integer(1))
             ]),
             AST.text("one")
           )
