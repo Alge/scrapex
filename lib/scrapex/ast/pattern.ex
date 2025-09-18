@@ -1,7 +1,7 @@
 defmodule Scrapex.AST.Pattern do
   @moduledoc "Pattern nodes in the AST"
 
-  alias Scrapex.AST.{Identifier, Literal}
+  alias Scrapex.AST.{Identifier, Literal, Record}
 
   # =============================================================================
   # TYPES
@@ -22,12 +22,6 @@ defmodule Scrapex.AST.Pattern do
           | concat_list_pattern()
           | cons_list_pattern()
 
-  # Record patterns
-  @type identifier_record_pattern :: {:field, identifier :: Identifier.t(), pattern :: t()}
-  @type rest_record_pattern :: {:rest, pattern :: t()}
-  @type record_pattern_field :: identifier_record_pattern() | rest_record_pattern()
-  @type record_pattern :: {:record_pattern, fields :: [record_pattern_field()]}
-
   # Other patterns
   @type variant_pattern :: {:variant_pattern, identifier :: Identifier.t(), patterns :: [t()]}
   @type text_pattern :: {:text_pattern, text :: Literal.text_literal(), pattern :: t()}
@@ -38,9 +32,9 @@ defmodule Scrapex.AST.Pattern do
           | Identifier.t()
           | wildcard_pattern()
           | list_pattern()
-          | record_pattern()
           | variant_pattern()
           | text_pattern()
+          | Record.record_pattern()
 
   # =============================================================================
   # CONSTRUCTORS

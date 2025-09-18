@@ -8,7 +8,7 @@ defmodule Scrapex.AST do
   The actual implementations are in focused submodules.
   """
 
-  alias Scrapex.AST.{Literal, Pattern, Identifier, Expression, Type}
+  alias Scrapex.AST.{Literal, Pattern, Identifier, Expression, Type, Record}
 
   # =============================================================================
   # TOP-LEVEL TYPES
@@ -39,9 +39,7 @@ defmodule Scrapex.AST do
   defdelegate regular_list_pattern(elements), to: Pattern
   defdelegate concat_list_pattern(elements, tail), to: Pattern
   defdelegate cons_list_pattern(head, tail), to: Pattern
-  defdelegate record_pattern_field(identifier, pattern), to: Pattern
-  defdelegate record_rest(pattern), to: Pattern
-  defdelegate record_pattern(fields), to: Pattern
+
   defdelegate variant_pattern(identifier, patterns), to: Pattern
   defdelegate text_pattern(text, pattern), to: Pattern
 
@@ -64,8 +62,14 @@ defmodule Scrapex.AST do
   defdelegate pattern_match_expression(clauses), to: Expression
   defdelegate function_app(identifier, argumente), to: Expression
   defdelegate type_declaration(name, variants), to: Expression
-  defdelegate record_literal(fields), to: Expression
-  defdelegate record_field(identifier, expression), to: Expression
+
+  # === RECORD CONSTRUCTORS ===
+  defdelegate record_literal(fields), to: Record
+  defdelegate record_pattern(fields), to: Record
+  defdelegate spread_expression(expression), to: Record
+  defdelegate record_rest(pattern), to: Record
+  defdelegate record_expression_field(key, expression), to: Record
+  defdelegate record_pattern_field(key, pattern), to: Record
 
   # =============================================================================
   # CONVENIENCE FUNCTIONS
@@ -73,20 +77,4 @@ defmodule Scrapex.AST do
 
   @doc "Create a simple list pattern from elements"
   def list(elements), do: Pattern.regular_list_pattern(elements)
-
-  @doc "Create a record with field patterns"
-  def record(fields), do: Pattern.record_pattern(fields)
-
-  @doc "Convenience for creating record fields"
-  def field(name, pattern) when is_binary(name) do
-    Pattern.record_field(identifier(name), pattern)
-  end
-
-  @doc "Convenience for creating record rest patterns"
-  def rest(pattern), do: Pattern.record_rest(pattern)
-
-  # @doc "Create a simple function call"
-  # def call(func_name, args) when is_binary(func_name) do
-  #  Expression.function_application(identifier(func_name), args)
-  # end
 end

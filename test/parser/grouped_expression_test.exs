@@ -20,7 +20,6 @@ defmodule Scrapex.Parser.GroupedExpressionTest do
       assert {:ok, ^expected} = Parser.parse(input)
     end
 
-    @tag :skip
     test "parses a grouped expression with a simple literal" do
       # Input: "(1)"
       input = [
@@ -38,7 +37,6 @@ defmodule Scrapex.Parser.GroupedExpressionTest do
       assert {:ok, ^expected} = Parser.parse(input)
     end
 
-    @tag :skip
     test "parses a grouped expression with a binary operation" do
       # Input: "(1 + 2)"
       input = [

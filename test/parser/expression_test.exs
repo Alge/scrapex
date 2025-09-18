@@ -19,7 +19,6 @@ defmodule Scrapex.Parser.ExpressionTest do
       assert {:ok, ^expected} = Parser.parse(input)
     end
 
-    @tag :skip
     test "parses a list of integer literals" do
       # Input: [1, 2, 3]
       input = [
@@ -107,8 +106,27 @@ defmodule Scrapex.Parser.ExpressionTest do
       assert {:ok, ^expected} = Parser.parse(input)
     end
 
-    @tag :skip
-    test "parses a record with fields" do
+    test "parses a record with one field" do
+      # Input: { a = 1 }
+      input = [
+        Token.new(:left_brace, 1, 1),
+        Token.new(:identifier, "a", 1, 3),
+        Token.new(:equals, 1, 5),
+        Token.new(:integer, 1, 1, 7),
+        Token.new(:right_brace, 1, 18),
+        Token.new(:eof, 1, 19)
+      ]
+
+      expected =
+        AST.record_literal([
+          # Assuming a new AST node
+          AST.record_field(AST.identifier("a"), AST.integer(1))
+        ])
+
+      assert {:ok, ^expected} = Parser.parse(input)
+    end
+
+    test "parses a record with multiple fields" do
       # Input: { a = 1, b = "x" }
       input = [
         Token.new(:left_brace, 1, 1),
@@ -133,13 +151,11 @@ defmodule Scrapex.Parser.ExpressionTest do
       assert {:ok, ^expected} = Parser.parse(input)
     end
 
-    @tag :skip
     test "parses a record with a spread expression" do
       # Input: { ..g, a = 2 }
       input = [
         Token.new(:left_brace, 1, 1),
-        Token.new(:dot, 1, 3),
-        Token.new(:dot, 1, 4),
+        Token.new(:double_dot, 1, 3),
         Token.new(:identifier, "g", 1, 5),
         Token.new(:comma, 1, 6),
         Token.new(:identifier, "a", 1, 8),
@@ -150,11 +166,33 @@ defmodule Scrapex.Parser.ExpressionTest do
       ]
 
       expected =
-        AST.record_literal(
-          [AST.record_field(AST.identifier("a"), AST.integer(2))],
-          # Assuming record_literal can take a spread expression
-          AST.identifier("g")
-        )
+        AST.record_literal([
+          AST.spread_expression(AST.identifier("g")),
+          AST.record_field(AST.identifier("a"), AST.integer(2))
+        ])
+
+      assert {:ok, ^expected} = Parser.parse(input)
+    end
+
+    test "parses a record with a reversed spread expression" do
+      # Input: { a = 2, ..g }
+      input = [
+        Token.new(:left_brace, 1, 1),
+        Token.new(:identifier, "a", 1, 8),
+        Token.new(:equals, 1, 10),
+        Token.new(:integer, 2, 1, 12),
+        Token.new(:comma, 1, 6),
+        Token.new(:double_dot, 1, 3),
+        Token.new(:identifier, "g", 1, 5),
+        Token.new(:right_brace, 1, 13),
+        Token.new(:eof, 1, 14)
+      ]
+
+      expected =
+        AST.record_literal([
+          AST.record_field(AST.identifier("a"), AST.integer(2)),
+          AST.spread_expression(AST.identifier("g"))
+        ])
 
       assert {:ok, ^expected} = Parser.parse(input)
     end

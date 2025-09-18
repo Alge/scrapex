@@ -6,7 +6,7 @@ defmodule Scrapex.AST.Expression do
   This module uses a traditional operator tree structure.
   """
 
-  alias Scrapex.AST.{Literal, Identifier, Pattern, Type}
+  alias Scrapex.AST.{Literal, Identifier, Pattern, Type, Record}
 
   # =============================================================================
   # TYPESPECS
@@ -29,12 +29,6 @@ defmodule Scrapex.AST.Expression do
   @typedoc "Represents a list literal, e.g., [1, 2, 3]"
   @type list_literal :: {:list_literal, elements :: [t()]}
 
-  @typedoc "A field in a record literal, e.g., `a = 1`"
-  # We can reuse Identifier here
-  @type record_field :: {:record_field, Identifier.t(), t()}
-  @typedoc "Represents a record literal, e.g., {a = 1, b = 2}"
-  @type record_literal :: {:record_literal, fields :: [record_field()]}
-
   @type function_app :: {:function_app, function :: t(), argument :: t()}
   @type type_declaration :: {:type_declaration, name :: String.t(), variants :: [Type.variant()]}
 
@@ -51,7 +45,7 @@ defmodule Scrapex.AST.Expression do
           | binary_op()
           | group_expression()
           | list_literal()
-          | record_literal()
+          | Record.record_literal()
           | pattern_match_expression()
           # This represents a type annotation like `x : int`
           | Type.type_annotation()
@@ -70,6 +64,4 @@ defmodule Scrapex.AST.Expression do
   def pattern_match_expression(clauses), do: {:pattern_match_expression, clauses}
   def function_app(identifier, argument), do: {:function_app, identifier, argument}
   def type_declaration(name, variants), do: {:type_declaration, name, variants}
-  def record_literal(fields), do: {:record_literal, fields}
-  def record_field(identifier, expression), do: {:record_field, identifier, expression}
 end

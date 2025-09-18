@@ -196,12 +196,77 @@ defmodule Scrapex.Parser do
 
   # --- Pattern match dispatcher ---
 
+  defp parse_list_pattern([%Token{type: :right_bracket} | rest]) do
+    {:ok, AST.empty_list(), rest}
+  end
+
+  # Handle lists with content
+  defp parse_list_pattern(token_list) do
+    case parse_list_pattern_elements(token_list, []) do
+      {:ok, elements, rest} -> {:ok, AST.regular_list_pattern(elements), rest}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  # Extract all elements from a list
+  defp parse_list_pattern_elements(token_list, acc) do
+    case parse_pattern(token_list) do
+      {:ok, pattern, [%Token{type: :comma} | rest]} ->
+        # We have more items to parse, let's recurse
+        parse_list_pattern_elements(rest, [pattern | acc])
+
+      {:ok, pattern, [%Token{type: :right_bracket} | rest]} ->
+        # We have reached the end, time to return the reversed acc
+        {:ok, Enum.reverse([pattern | acc]), rest}
+
+      {:ok, _expression, [token | _rest]} ->
+        # Got an unexpected token
+        {:error, "Got an unexpected token: #{Token.to_string(token)}, expected ',' or ']'"}
+
+      # We failed parsing the expression!
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp parse_record_pattern([%Token{type: :right_brace} | rest]) do
+    # It correctly produces the `record_pattern` AST node.
+    {:ok, AST.record_pattern([]), rest}
+  end
+
   defp can_start_pattern?(%Token{type: type, value: _}) do
     AST.literal?(type) or type in [:identifier, :left_bracket, :left_brace, :hashtag]
   end
 
-  defp parse_pattern([%Token{type: :identifier, value: "_"} | rest]) do
+  defp parse_pattern([%Token{type: :underscore} | rest]) do
     {:ok, AST.wildcard(), rest}
+  end
+
+  defp parse_pattern([%Token{type: type} | _rest] = token_list)
+       when type in [
+              :integer,
+              :float,
+              :text,
+              :interpolated_text,
+              :hexbyte,
+              :base64,
+              :hole,
+              :identifier
+            ] do
+    parse_prefix_expression(token_list)
+  end
+
+  defp parse_pattern([%Token{type: :left_bracket} | rest]) do
+    parse_list_pattern(rest)
+  end
+
+  defp parse_pattern([%Token{type: :left_brace} | rest]) do
+    parse_record_pattern(rest)
+  end
+
+  defp parse_pattern([%Token{type: :hashtag} | _rest]) do
+    # TODO
+    nil
   end
 
   defp parse_pattern([token | _] = token_list) do
@@ -260,18 +325,18 @@ defmodule Scrapex.Parser do
 
   # Handle lists with content
   defp parse_list_literal(token_list) do
-    case parse_list_elements(token_list, []) do
+    case parse_list_literal_elements(token_list, []) do
       {:ok, elements, rest} -> {:ok, AST.list_literal(elements), rest}
       {:error, reason} -> {:error, reason}
     end
   end
 
   # Extract all elements from a list
-  defp parse_list_elements(token_list, acc) do
+  defp parse_list_literal_elements(token_list, acc) do
     case parse_expression(token_list, 0) do
       {:ok, expression, [%Token{type: :comma} | rest]} ->
         # We have more items to parse, let's recurse
-        parse_list_elements(rest, [expression | acc])
+        parse_list_literal_elements(rest, [expression | acc])
 
       {:ok, expression, [%Token{type: :right_bracket} | rest]} ->
         # We have reached the end, time to return the reversed acc
@@ -282,6 +347,67 @@ defmodule Scrapex.Parser do
         {:error, "Got an unexpected token: #{Token.to_string(token)}, expected ',' or ']'"}
 
       # We failed parsing the expression!
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # --- Parsing of records ----
+
+  defp parse_one_record_field(token_list) do
+    case token_list do
+      # identifier and equals, this is a regular record field
+      [
+        %Token{type: :identifier, value: key_name} | [%Token{type: :equals} | rest]
+      ] ->
+        case parse_expression(rest, 0) do
+          {:ok, expression, rest} ->
+            field = AST.record_field(AST.identifier(key_name), expression)
+            {:ok, field, rest}
+
+          # Something went wrong while parsing the expression
+          {:error, reason} ->
+            {:error, reason}
+        end
+
+      # spread operator and identifier
+      [
+        %Token{type: :double_dot} | [%Token{type: :identifier, value: key_name} | rest]
+      ] ->
+        spread = AST.spread_expression(AST.identifier(key_name))
+        {:ok, spread, rest}
+
+      # base case, something is not right
+      [token | _rest] ->
+        {:error,
+         "Unexpected token, expected comma or right brace, not '#{Token.to_string(token)}'"}
+    end
+  end
+
+  defp parse_record_fields(token_list, acc) do
+    case parse_one_record_field(token_list) do
+      {:ok, item, [%Token{type: :comma} | rest]} ->
+        # More are available
+        parse_record_fields(rest, [item | acc])
+
+      {:ok, item, [%Token{type: :right_brace} | rest]} ->
+        # This was the last item
+        {:ok, Enum.reverse([item | acc]), rest}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp parse_record_literal([%Token{type: :right_brace} | rest]) do
+    {:ok, AST.record_literal([]), rest}
+  end
+
+  defp parse_record_literal(token_list) do
+    case(parse_record_fields(token_list, [])) do
+      {:ok, fields, remaining_tokens} ->
+        {:ok, AST.record_literal(fields), remaining_tokens}
+
       {:error, reason} ->
         {:error, reason}
     end
@@ -307,7 +433,11 @@ defmodule Scrapex.Parser do
     end
   end
 
-  defp parse_prefix(:left_bracket, [%Token{value: value} | rest]) do
+  defp parse_prefix(:left_brace, [_brace_token | rest]) do
+    parse_record_literal(rest)
+  end
+
+  defp parse_prefix(:left_bracket, [_bracket_token | rest]) do
     parse_list_literal(rest)
   end
 
@@ -436,6 +566,8 @@ defmodule Scrapex.Parser do
   end
 
   defp can_start_function_argument?(token) do
-    can_start_prefix_expression?(token) and get_infix_precedence(token) == 0
+    result = can_start_prefix_expression?(token) and get_infix_precedence(token) == 0
+    Logger.debug("can_start_function_argument? for #{inspect(token.type)} -> #{result}")
+    result
   end
 end

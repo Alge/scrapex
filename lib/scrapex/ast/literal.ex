@@ -47,9 +47,8 @@ defmodule Scrapex.AST.Literal do
   @doc "Create a hole literal"
   def hole(), do: {:hole, nil}
 
-  def literal?(token_type)
-      when token_type in [:integer, :float, :text, :interpolated_text, :hexbyte, :base64, :hole],
-      do: true
+  @literal_types [:integer, :float, :text, :interpolated_text, :hexbyte, :base64, :hole]
 
+  def literal?(token_type) when token_type in @literal_types, do: true
   def literal?(_), do: false
 end
