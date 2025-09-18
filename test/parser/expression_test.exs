@@ -200,4 +200,25 @@ defmodule Scrapex.Parser.ExpressionTest do
       assert {:ok, ^expected} = Parser.parse(input)
     end
   end
+
+  test "parses a simple where-clause" do
+    # Input: "x ; x = 1"
+    input = [
+      Token.new(:identifier, "x", 1, 1),
+      Token.new(:semicolon, 1, 3),
+      Token.new(:identifier, "x", 1, 5),
+      Token.new(:equals, 1, 7),
+      Token.new(:integer, 1, 1, 9),
+      Token.new(:eof, 1, 10)
+    ]
+
+    # We need a new, more descriptive AST node.
+    expected =
+      AST.where(
+        AST.identifier("x"),
+        AST.binary_op(AST.identifier("x"), :equals, AST.integer(1))
+      )
+
+    assert {:ok, ^expected} = Parser.parse(input)
+  end
 end

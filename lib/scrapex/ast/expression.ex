@@ -34,6 +34,8 @@ defmodule Scrapex.AST.Expression do
 
   @type field_access :: {:field_access, source :: t(), field :: Identifier.t()}
 
+  @type variant_constructor :: {:variant_constructor, type :: t(), variant :: t()}
+
   # function_application, etc., here in the same style.
 
   @typedoc "The main union type for any valid expression."
@@ -54,6 +56,7 @@ defmodule Scrapex.AST.Expression do
           | function_app()
           | type_declaration()
           | field_access()
+          | variant_constructor()
 
   # =============================================================================
   # CONSTRUCTORS
@@ -68,4 +71,5 @@ defmodule Scrapex.AST.Expression do
   def function_app(identifier, argument), do: {:function_app, identifier, argument}
   def type_declaration(name, variants), do: {:type_declaration, name, variants}
   def field_access(source, field), do: {:field_access, source, field}
+  def variant_constructor(type, variant), do: {:variant_constructor, type, variant}
 end

@@ -109,6 +109,19 @@ defmodule Scrapex.Parser do
               {:error, reason}
           end
 
+        next_token.type == :double_colon and next_precedence > precedence_context ->
+          # The precedence of `::` is 8.
+          case parse_expression(tl(token_list), next_precedence) do
+            {:ok, variant_expr, rest} ->
+              # Build the specific AST node we want.
+              new_left_ast = AST.variant_constructor(left_ast, variant_expr)
+              # Loop again to handle chained operations if ever needed.
+              parse_infix_expression(rest, new_left_ast, precedence_context)
+
+            {:error, reason} ->
+              {:error, reason}
+          end
+
         # There is currently nothing with higher precedence than 40, but let'readabilitys check
         # anyways for completeness and to reduce risk of bugs in the future!
         can_start_function_argument?(next_token) and
