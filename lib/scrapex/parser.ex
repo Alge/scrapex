@@ -92,6 +92,23 @@ defmodule Scrapex.Parser do
               end
           end
 
+        next_token.type == :dot and next_precedence > precedence_context ->
+          case parse_expression(tl(token_list), next_precedence) do
+            # The right-hand side of a `.` MUST be an identifier.
+            {:ok, {:identifier, _} = field_identifier, rest} ->
+              # Build the specific AST node we want.
+              new_left_ast = AST.field_access(left_ast, field_identifier)
+              # Loop again to handle chained access like `a.b.c`.
+              parse_infix_expression(rest, new_left_ast, precedence_context)
+
+            # If the RHS is not an identifier, it's a syntax error.
+            {:ok, other, _} ->
+              {:error, "Expected an identifier for field access, but got #{inspect(other)}"}
+
+            {:error, reason} ->
+              {:error, reason}
+          end
+
         # There is currently nothing with higher precedence than 40, but let'readabilitys check
         # anyways for completeness and to reduce risk of bugs in the future!
         can_start_function_argument?(next_token) and
@@ -196,6 +213,77 @@ defmodule Scrapex.Parser do
 
   # --- Pattern match dispatcher ---
 
+  defp parse_pattern(token_list) do
+    parse_pattern(token_list, 0)
+  end
+
+  defp parse_pattern(token_list, precedence_context) do
+    case parse_prefix_pattern(token_list) do
+      {:ok, left_ast, rest_after_prefix} ->
+        # Step 2: Pass the result to the infix loop to see if more operators follow.
+        parse_infix_pattern(rest_after_prefix, left_ast, precedence_context)
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp parse_infix_pattern(token_list, left_ast, precedence_context) do
+    # Peek at the next token to decide what to do.
+    case token_list do
+      # This is the main logic branch.
+      [next_token | _] ->
+        next_precedence = get_pattern_infix_precedence(next_token)
+
+        # The core Pratt parser condition:
+        if next_precedence > precedence_context do
+          # We found an infix operator that is tight enough to bind.
+          # Let's parse it.
+          operator_token = next_token
+          rest_after_operator = tl(token_list)
+
+          # Recursively call the main `parse_pattern` orchestrator to get the right-hand side.
+          case parse_pattern(rest_after_operator, next_precedence) do
+            {:ok, right_ast, rest_after_rhs} ->
+              # Combine the left, operator, and right into a new AST node.
+              new_left_ast =
+                case operator_token.type do
+                  :double_plus ->
+                    case left_ast do
+                      {:text, _value} ->
+                        AST.text_pattern(left_ast, right_ast)
+
+                      {:regular_list_pattern, elements} ->
+                        AST.concat_list_pattern(elements, right_ast)
+                    end
+
+                  :cons ->
+                    AST.cons_list_pattern(left_ast, right_ast)
+
+                  _ ->
+                    # This would be a syntax error, as `++` can only follow text or a list pattern.
+                    {:error, "Invalid use of ++ operator in a pattern"}
+                end
+
+              # IMPORTANT: Loop again by calling ourself recursively to see
+              # if there are more operators.
+              parse_infix_pattern(rest_after_rhs, new_left_ast, precedence_context)
+
+            {:error, reason} ->
+              {:error, reason}
+          end
+        else
+          # The next token is not an infix operator, or its precedence is too low.
+          # We are done. Return the AST we have built so far.
+          {:ok, left_ast, token_list}
+        end
+
+      # This is the base case for the recursion: we've run out of tokens.
+      [] ->
+        {:ok, left_ast, token_list}
+    end
+  end
+
   defp parse_list_pattern([%Token{type: :right_bracket} | rest]) do
     {:ok, AST.empty_list(), rest}
   end
@@ -229,20 +317,70 @@ defmodule Scrapex.Parser do
     end
   end
 
+  ### Parsing of record patterns ###
+
   defp parse_record_pattern([%Token{type: :right_brace} | rest]) do
     # It correctly produces the `record_pattern` AST node.
     {:ok, AST.record_pattern([]), rest}
   end
 
+  defp parse_record_pattern(token_list) do
+    case parse_record_pattern_elements(token_list, []) do
+      {:ok, elements, rest} -> {:ok, AST.record_pattern(elements), rest}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp parse_one_record_pattern_element(token_list) do
+    case token_list do
+      [%Token{type: :identifier, value: name} | [%Token{type: :equals} | rest]] ->
+        case parse_pattern(rest) do
+          {:ok, pattern, rest} ->
+            item = AST.record_pattern_field(AST.identifier(name), pattern)
+            {:ok, item, rest}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+
+      [%Token{type: :double_dot} | [%Token{type: :identifier, value: name} | rest]] ->
+        item = AST.record_rest(AST.identifier(name))
+        {:ok, item, rest}
+
+      [token | _rest] ->
+        {:error,
+         "Got an unexpected token: #{Token.to_string(token)}, expected 'Identifier =' or '..Identifier'"}
+    end
+  end
+
+  # Extract all items from a record pattern
+  defp parse_record_pattern_elements(token_list, acc) do
+    case parse_one_record_pattern_element(token_list) do
+      {:ok, element, [%Token{type: :right_brace} | rest]} ->
+        {:ok, Enum.reverse([element | acc]), rest}
+
+      {:ok, element, [%Token{type: :comma} | rest]} ->
+        parse_record_pattern_elements(rest, [element | acc])
+
+      {:ok, _element, [token | _rest]} ->
+        {:error, "Got an unexpected token: #{Token.to_string(token)}, expected ',' or '}'"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  ### End of parsing record patterns ###
+
   defp can_start_pattern?(%Token{type: type, value: _}) do
     AST.literal?(type) or type in [:identifier, :left_bracket, :left_brace, :hashtag]
   end
 
-  defp parse_pattern([%Token{type: :underscore} | rest]) do
+  defp parse_prefix_pattern([%Token{type: :underscore} | rest]) do
     {:ok, AST.wildcard(), rest}
   end
 
-  defp parse_pattern([%Token{type: type} | _rest] = token_list)
+  defp parse_prefix_pattern([%Token{type: type} | _rest] = token_list)
        when type in [
               :integer,
               :float,
@@ -256,20 +394,40 @@ defmodule Scrapex.Parser do
     parse_prefix_expression(token_list)
   end
 
-  defp parse_pattern([%Token{type: :left_bracket} | rest]) do
+  defp parse_prefix_pattern([%Token{type: :left_bracket} | rest]) do
     parse_list_pattern(rest)
   end
 
-  defp parse_pattern([%Token{type: :left_brace} | rest]) do
+  defp parse_prefix_pattern([%Token{type: :left_brace} | rest]) do
     parse_record_pattern(rest)
   end
 
-  defp parse_pattern([%Token{type: :hashtag} | _rest]) do
-    # TODO
-    nil
+  defp parse_prefix_pattern([
+         %Token{type: :hashtag},
+         %Token{type: :identifier, value: name} | [token | _] = rest
+       ]) do
+    identifier = AST.identifier(name)
+
+    # Check if we should extract a pattern.
+    # Note that scrap script only supports one pattern
+    # It would probably be cleaner to not have a list here!
+    {payload, remaining_tokens} =
+      if(can_start_pattern?(token)) do
+        case parse_prefix_pattern(rest) do
+          {:ok, pattern, rest} ->
+            {[pattern], rest}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+      else
+        {[], rest}
+      end
+
+    {:ok, AST.variant_pattern(identifier, payload), remaining_tokens}
   end
 
-  defp parse_pattern([token | _] = token_list) do
+  defp parse_prefix_pattern([token | _] = token_list) do
     # Check if the token is allowed in a pattern context.
     if can_start_pattern?(token) do
       # The prefix parser will return {:ok, ast, rest_of_tokens}.
@@ -280,7 +438,7 @@ defmodule Scrapex.Parser do
     end
   end
 
-  defp parse_pattern([]), do: {:error, "Unexpected end of input, expected a pattern"}
+  defp parse_prefix_pattern([]), do: {:error, "Unexpected end of input, expected a pattern"}
 
   defp parse_pattern_match_clauses(
          [%Token{type: :pipe} | rest],
@@ -557,6 +715,18 @@ defmodule Scrapex.Parser do
   end
 
   defp get_infix_precedence(_), do: 0
+
+  defp get_pattern_infix_precedence(%Token{type: type}) do
+    case type do
+      # ++
+      :double_plus -> 9
+      # >+
+      :cons -> 11
+      _ -> 0
+    end
+  end
+
+  defp get_pattern_infix_precedence(_), do: 0
 
   defp can_start_prefix_expression?(%Token{type: token_type}) do
     AST.Literal.literal?(token_type) or

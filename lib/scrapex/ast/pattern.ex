@@ -23,6 +23,7 @@ defmodule Scrapex.AST.Pattern do
           | cons_list_pattern()
 
   # Other patterns
+  # TODO: Maybe only allow one pattern here?
   @type variant_pattern :: {:variant_pattern, identifier :: Identifier.t(), patterns :: [t()]}
   @type text_pattern :: {:text_pattern, text :: Literal.text_literal(), pattern :: t()}
 

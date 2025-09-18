@@ -1,4 +1,5 @@
 # test/parser/expression_test.exs
+require Logger
 
 defmodule Scrapex.Parser.ExpressionTest do
   use ExUnit.Case, async: true
@@ -108,6 +109,8 @@ defmodule Scrapex.Parser.ExpressionTest do
 
     test "parses a record with one field" do
       # Input: { a = 1 }
+      Logger.info("Parsing: { a = 1 }")
+
       input = [
         Token.new(:left_brace, 1, 1),
         Token.new(:identifier, "a", 1, 3),

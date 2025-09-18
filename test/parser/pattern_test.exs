@@ -209,7 +209,7 @@ defmodule Scrapex.Parser.PatternTest do
         AST.pattern_match_expression([
           AST.pattern_clause(
             AST.record_pattern([
-              AST.record_expression_field(AST.identifier("a"), AST.integer(1))
+              AST.record_pattern_field(AST.identifier("a"), AST.integer(1))
             ]),
             AST.text("one")
           )
@@ -218,7 +218,38 @@ defmodule Scrapex.Parser.PatternTest do
       assert {:ok, ^expected} = Parser.parse(input)
     end
 
-    @tag :skip
+    test "parses an infix list concatenation pattern" do
+      # Input: | [x] ++ t -> t
+      input = [
+        Token.new(:pipe, 1, 1),
+        Token.new(:left_bracket, 1, 3),
+        Token.new(:identifier, "x", 1, 4),
+        Token.new(:right_bracket, 1, 5),
+        # <-- The infix operator
+        Token.new(:double_plus, 1, 7),
+        Token.new(:identifier, "t", 1, 10),
+        Token.new(:right_arrow, 1, 12),
+        Token.new(:identifier, "t", 1, 14),
+        Token.new(:eof, 1, 15)
+      ]
+
+      expected =
+        AST.pattern_match_expression([
+          AST.pattern_clause(
+            # We expect the specific AST node for list concat
+            AST.concat_list_pattern(
+              # The elements from the prefix list
+              [AST.identifier("x")],
+              # The tail pattern
+              AST.identifier("t")
+            ),
+            AST.identifier("t")
+          )
+        ])
+
+      assert {:ok, ^expected} = Parser.parse(input)
+    end
+
     test "parses various list patterns" do
       # | [] -> 0 | [x, y] -> 1 | h >+ t -> 2 | [x,y] ++ t -> 3
       input = [
@@ -307,133 +338,296 @@ defmodule Scrapex.Parser.PatternTest do
       assert {:ok, ^expected} = Parser.parse(input)
     end
 
-    # @tag :skip
-    # test "parses record patterns" do
-    #   # | {a=1, b=x} -> x | {..r, a=1} -> r
-    #   input = [
-    #     Token.new(:pipe, 1, 1),
-    #     Token.new(:left_brace, 1, 3),
-    #     Token.new(:identifier, "a", 1, 4),
-    #     Token.new(:equals, 1, 5),
-    #     Token.new(:integer, 1, 1, 6),
-    #     Token.new(:comma, 1, 7),
-    #     Token.new(:identifier, "b", 1, 9),
-    #     Token.new(:equals, 1, 10),
-    #     Token.new(:identifier, "x", 1, 11),
-    #     Token.new(:right_brace, 1, 12),
-    #     Token.new(:right_arrow, 1, 14),
-    #     Token.new(:identifier, "x", 1, 16),
-    #     Token.new(:pipe, 1, 18),
-    #     Token.new(:left_brace, 1, 20),
-    #     Token.new(:double_dot, 1, 21),
-    #     Token.new(:identifier, "r", 1, 23),
-    #     Token.new(:comma, 1, 24),
-    #     Token.new(:identifier, "a", 1, 26),
-    #     Token.new(:equals, 1, 27),
-    #     Token.new(:integer, 1, 1, 28),
-    #     Token.new(:right_brace, 1, 29),
-    #     Token.new(:right_arrow, 1, 31),
-    #     Token.new(:identifier, "r", 1, 33),
-    #     Token.new(:eof, 1, 34)
-    #   ]
+    test "parses a simple variant pattern with no payload" do
+      # Input: | #loading -> "..."
+      input = [
+        Token.new(:pipe, 1, 1),
+        Token.new(:hashtag, 1, 3),
+        Token.new(:identifier, "loading", 1, 4),
+        Token.new(:right_arrow, 1, 12),
+        Token.new(:text, "...", 1, 15),
+        Token.new(:eof, 1, 20)
+      ]
 
-    #   expected =
-    #     AST.pattern_match_expression([
-    #       {
-    #         AST.record_pattern([
-    #           AST.record_pattern_field("a", AST.integer(1)),
-    #           AST.record_pattern_field("b", AST.identifier("x"))
-    #         ]),
-    #         AST.identifier("x")
-    #       },
-    #       {
-    #         AST.record_pattern([
-    #           AST.rest(AST.identifier("r")),
-    #           AST.record_pattern_field("a", AST.integer(1))
-    #         ]),
-    #         AST.identifier("r")
-    #       }
-    #     ])
+      expected =
+        AST.pattern_match_expression([
+          AST.pattern_clause(
+            # We expect a variant_pattern with the 'loading' identifier and an empty list of payload patterns.
+            AST.variant_pattern(AST.identifier("loading"), []),
+            AST.text("...")
+          )
+        ])
 
-    #   assert {:ok, ^expected} = Parser.parse(input)
-    # end
+      assert {:ok, ^expected} = Parser.parse(input)
+    end
 
-    # @tag :skip
-    # test "parses nested and text patterns" do
-    #   # | { a = [x], b = "hi " ++ name } -> name
-    #   input = [
-    #     Token.new(:pipe, 1, 1),
-    #     Token.new(:left_brace, 1, 3),
-    #     Token.new(:identifier, "a", 1, 5),
-    #     Token.new(:equals, 1, 7),
-    #     Token.new(:left_bracket, 1, 9),
-    #     Token.new(:identifier, "x", 1, 10),
-    #     Token.new(:right_bracket, 1, 11),
-    #     Token.new(:comma, 1, 12),
-    #     Token.new(:identifier, "b", 1, 14),
-    #     Token.new(:equals, 1, 16),
-    #     Token.new(:text, "hi ", 1, 18),
-    #     Token.new(:double_plus, 1, 23),
-    #     Token.new(:identifier, "name", 1, 26),
-    #     Token.new(:right_brace, 1, 30),
-    #     Token.new(:right_arrow, 1, 32),
-    #     Token.new(:identifier, "name", 1, 34),
-    #     Token.new(:eof, 1, 38)
-    #   ]
+    test "parses a variant pattern with a single payload pattern" do
+      # Input: | #ok response -> response
+      input = [
+        Token.new(:pipe, 1, 1),
+        Token.new(:hashtag, 1, 3),
+        Token.new(:identifier, "ok", 1, 4),
+        # <-- The new payload pattern
+        Token.new(:identifier, "response", 1, 7),
+        Token.new(:right_arrow, 1, 16),
+        Token.new(:identifier, "response", 1, 19),
+        Token.new(:eof, 1, 27)
+      ]
 
-    #   expected =
-    #     AST.pattern_match_expression([
-    #       {
-    #         AST.record_pattern([
-    #           AST.record_pattern_field("a", AST.regular_list_pattern([AST.identifier("x")])),
-    #           AST.record_pattern_field(
-    #             "b",
-    #             AST.text_pattern(AST.text("hi "), AST.identifier("name"))
-    #           )
-    #         ]),
-    #         AST.identifier("name")
-    #       }
-    #     ])
+      expected =
+        AST.pattern_match_expression([
+          AST.pattern_clause(
+            # We now expect a payload: a list containing one identifier pattern.
+            AST.variant_pattern(AST.identifier("ok"), [AST.identifier("response")]),
+            AST.identifier("response")
+          )
+        ])
 
-    #   assert {:ok, ^expected} = Parser.parse(input)
-    # end
+      assert {:ok, ^expected} = Parser.parse(input)
+    end
 
-    # @tag :skip
-    # test "parses variant patterns" do
-    #   # | #l n -> n * 2 | #r n -> n * 3
-    #   input = [
-    #     Token.new(:pipe, 1, 1),
-    #     Token.new(:hashtag, 1, 3),
-    #     Token.new(:identifier, "l", 1, 4),
-    #     Token.new(:identifier, "n", 1, 6),
-    #     Token.new(:right_arrow, 1, 8),
-    #     Token.new(:identifier, "n", 1, 10),
-    #     Token.new(:multiply, 1, 12),
-    #     Token.new(:integer, 2, 1, 14),
-    #     Token.new(:pipe, 1, 16),
-    #     Token.new(:hashtag, 1, 18),
-    #     Token.new(:identifier, "r", 1, 19),
-    #     Token.new(:identifier, "n", 1, 21),
-    #     Token.new(:right_arrow, 1, 23),
-    #     Token.new(:identifier, "n", 1, 25),
-    #     Token.new(:multiply, 1, 27),
-    #     Token.new(:integer, 3, 1, 29),
-    #     Token.new(:eof, 1, 30)
-    #   ]
+    test "parses record patterns" do
+      # | {a=1, b=x} -> x | {..r, a=1} -> r
+      input = [
+        Token.new(:pipe, 1, 1),
+        Token.new(:left_brace, 1, 3),
+        Token.new(:identifier, "a", 1, 4),
+        Token.new(:equals, 1, 5),
+        Token.new(:integer, 1, 1, 6),
+        Token.new(:comma, 1, 7),
+        Token.new(:identifier, "b", 1, 9),
+        Token.new(:equals, 1, 10),
+        Token.new(:identifier, "x", 1, 11),
+        Token.new(:right_brace, 1, 12),
+        Token.new(:right_arrow, 1, 14),
+        Token.new(:identifier, "x", 1, 16),
+        Token.new(:pipe, 1, 18),
+        Token.new(:left_brace, 1, 20),
+        Token.new(:double_dot, 1, 21),
+        Token.new(:identifier, "r", 1, 23),
+        Token.new(:comma, 1, 24),
+        Token.new(:identifier, "a", 1, 26),
+        Token.new(:equals, 1, 27),
+        Token.new(:integer, 1, 1, 28),
+        Token.new(:right_brace, 1, 29),
+        Token.new(:right_arrow, 1, 31),
+        Token.new(:identifier, "r", 1, 33),
+        Token.new(:eof, 1, 34)
+      ]
 
-    #   expected =
-    #     AST.pattern_match_expression([
-    #       {
-    #         AST.variant_pattern(AST.identifier("l"), [AST.identifier("n")]),
-    #         AST.binary_op(AST.identifier("n"), :multiply, AST.integer(2))
-    #       },
-    #       {
-    #         AST.variant_pattern(AST.identifier("r"), [AST.identifier("n")]),
-    #         AST.binary_op(AST.identifier("n"), :multiply, AST.integer(3))
-    #       }
-    #     ])
+      expected =
+        AST.pattern_match_expression([
+          AST.pattern_clause(
+            AST.record_pattern([
+              AST.record_pattern_field(AST.identifier("a"), AST.integer(1)),
+              AST.record_pattern_field(AST.identifier("b"), AST.identifier("x"))
+            ]),
+            AST.identifier("x")
+          ),
+          AST.pattern_clause(
+            AST.record_pattern([
+              AST.record_rest(AST.identifier("r")),
+              AST.record_pattern_field(AST.identifier("a"), AST.integer(1))
+            ]),
+            AST.identifier("r")
+          )
+        ])
 
-    #   assert {:ok, ^expected} = Parser.parse(input)
-    # end
+      assert {:ok, ^expected} = Parser.parse(input)
+    end
+
+    test "parses an infix text pattern" do
+      # Input: | "hi " ++ name -> name
+      input = [
+        Token.new(:pipe, 1, 1),
+        Token.new(:text, "hi ", 1, 3),
+        # Infix operator
+        Token.new(:double_plus, 1, 8),
+        Token.new(:identifier, "name", 1, 11),
+        Token.new(:right_arrow, 1, 16),
+        Token.new(:identifier, "name", 1, 18),
+        Token.new(:eof, 1, 22)
+      ]
+
+      expected =
+        AST.pattern_match_expression([
+          AST.pattern_clause(
+            # We expect a specific AST node for this infix pattern
+            AST.text_pattern(AST.text("hi "), AST.identifier("name")),
+            AST.identifier("name")
+          )
+        ])
+
+      assert {:ok, ^expected} = Parser.parse(input)
+    end
+
+    test "parses an infix cons list pattern" do
+      # Input: | h >+ t -> h
+      input = [
+        Token.new(:pipe, 1, 1),
+        Token.new(:identifier, "h", 1, 3),
+        # <-- The new infix operator
+        Token.new(:cons, 1, 5),
+        Token.new(:identifier, "t", 1, 8),
+        Token.new(:right_arrow, 1, 10),
+        Token.new(:identifier, "h", 1, 13),
+        Token.new(:eof, 1, 14)
+      ]
+
+      expected =
+        AST.pattern_match_expression([
+          AST.pattern_clause(
+            # We expect a specific AST node for the cons pattern
+            AST.cons_list_pattern(AST.identifier("h"), AST.identifier("t")),
+            AST.identifier("h")
+          )
+        ])
+
+      assert {:ok, ^expected} = Parser.parse(input)
+    end
+
+    test "parses nested and text patterns" do
+      # | { a = [x], b = "hi " ++ name } -> name
+      input = [
+        Token.new(:pipe, 1, 1),
+        Token.new(:left_brace, 1, 3),
+        Token.new(:identifier, "a", 1, 5),
+        Token.new(:equals, 1, 7),
+        Token.new(:left_bracket, 1, 9),
+        Token.new(:identifier, "x", 1, 10),
+        Token.new(:right_bracket, 1, 11),
+        Token.new(:comma, 1, 12),
+        Token.new(:identifier, "b", 1, 14),
+        Token.new(:equals, 1, 16),
+        Token.new(:text, "hi ", 1, 18),
+        Token.new(:double_plus, 1, 23),
+        Token.new(:identifier, "name", 1, 26),
+        Token.new(:right_brace, 1, 30),
+        Token.new(:right_arrow, 1, 32),
+        Token.new(:identifier, "name", 1, 34),
+        Token.new(:eof, 1, 38)
+      ]
+
+      expected =
+        AST.pattern_match_expression([
+          AST.pattern_clause(
+            AST.record_pattern([
+              AST.record_pattern_field(
+                AST.identifier("a"),
+                AST.regular_list_pattern([AST.identifier("x")])
+              ),
+              AST.record_pattern_field(
+                AST.identifier("b"),
+                AST.text_pattern(AST.text("hi "), AST.identifier("name"))
+              )
+            ]),
+            AST.identifier("name")
+          )
+        ])
+
+      assert {:ok, ^expected} = Parser.parse(input)
+    end
+
+    test "parses variant patterns" do
+      # | #l n -> n * 2 | #r n -> n * 3
+      input = [
+        Token.new(:pipe, 1, 1),
+        Token.new(:hashtag, 1, 3),
+        Token.new(:identifier, "l", 1, 4),
+        Token.new(:identifier, "n", 1, 6),
+        Token.new(:right_arrow, 1, 8),
+        Token.new(:identifier, "n", 1, 10),
+        Token.new(:multiply, 1, 12),
+        Token.new(:integer, 2, 1, 14),
+        Token.new(:pipe, 1, 16),
+        Token.new(:hashtag, 1, 18),
+        Token.new(:identifier, "r", 1, 19),
+        Token.new(:identifier, "n", 1, 21),
+        Token.new(:right_arrow, 1, 23),
+        Token.new(:identifier, "n", 1, 25),
+        Token.new(:multiply, 1, 27),
+        Token.new(:integer, 3, 1, 29),
+        Token.new(:eof, 1, 30)
+      ]
+
+      expected =
+        AST.pattern_match_expression([
+          AST.pattern_clause(
+            AST.variant_pattern(AST.identifier("l"), [AST.identifier("n")]),
+            AST.binary_op(AST.identifier("n"), :multiply, AST.integer(2))
+          ),
+          AST.pattern_clause(
+            AST.variant_pattern(AST.identifier("r"), [AST.identifier("n")]),
+            AST.binary_op(AST.identifier("n"), :multiply, AST.integer(3))
+          )
+        ])
+
+      assert {:ok, ^expected} = Parser.parse(input)
+    end
+  end
+
+  describe "invalid record patterns" do
+    test "rejects a record pattern with a leading comma" do
+      # Input: | {, a = 1} -> 0
+      input = [
+        Token.new(:pipe, 1, 1),
+        Token.new(:left_brace, 1, 3),
+        # <-- Invalid leading comma
+        Token.new(:comma, 1, 4),
+        Token.new(:identifier, "a", 1, 6),
+        Token.new(:equals, 1, 7),
+        Token.new(:integer, 1, 1, 8),
+        Token.new(:right_brace, 1, 9),
+        Token.new(:right_arrow, 1, 11),
+        Token.new(:integer, 0, 1, 13),
+        Token.new(:eof, 1, 14)
+      ]
+
+      # The parser should return an error, not {:ok, ...}
+      assert {:error, _} = Parser.parse(input)
+    end
+
+    test "rejects a record pattern with a trailing comma" do
+      # Input: | {a = 1,} -> 0
+      input = [
+        Token.new(:pipe, 1, 1),
+        Token.new(:left_brace, 1, 3),
+        Token.new(:identifier, "a", 1, 4),
+        Token.new(:equals, 1, 5),
+        Token.new(:integer, 1, 1, 6),
+        # Invalid trailing comma
+        Token.new(:comma, 1, 7),
+        Token.new(:right_brace, 1, 8),
+        Token.new(:right_arrow, 1, 10),
+        Token.new(:integer, 0, 1, 12),
+        Token.new(:eof, 1, 13)
+      ]
+
+      assert {:error, _} = Parser.parse(input)
+    end
+
+    test "rejects a record pattern with multiple commas between fields" do
+      # Input: | {a = 1,, b = 2} -> 0
+      input = [
+        Token.new(:pipe, 1, 1),
+        Token.new(:left_brace, 1, 3),
+        Token.new(:identifier, "a", 1, 4),
+        Token.new(:equals, 1, 5),
+        Token.new(:integer, 1, 1, 6),
+        # First comma is ok
+        Token.new(:comma, 1, 7),
+        # Second comma is invalid
+        Token.new(:comma, 1, 8),
+        Token.new(:identifier, "b", 1, 10),
+        Token.new(:equals, 1, 11),
+        Token.new(:integer, 2, 1, 12),
+        Token.new(:right_brace, 1, 13),
+        Token.new(:right_arrow, 1, 15),
+        Token.new(:integer, 0, 1, 17),
+        Token.new(:eof, 1, 18)
+      ]
+
+      assert {:error, _} = Parser.parse(input)
+    end
   end
 end

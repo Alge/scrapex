@@ -62,6 +62,7 @@ defmodule Scrapex.AST do
   defdelegate pattern_match_expression(clauses), to: Expression
   defdelegate function_app(identifier, argumente), to: Expression
   defdelegate type_declaration(name, variants), to: Expression
+  defdelegate field_access(source, field), to: Expression
 
   # === RECORD CONSTRUCTORS ===
   defdelegate record_literal(fields), to: Record

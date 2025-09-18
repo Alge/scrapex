@@ -107,7 +107,7 @@ defmodule Scrapex.ParserTest.Functions do
     expected =
       AST.function_app(
         AST.identifier("f"),
-        AST.binary_op(AST.identifier("x"), :dot, AST.identifier("y"))
+        AST.field_access(AST.identifier("x"), AST.identifier("y"))
       )
 
     assert {:ok, result} = Parser.parse(input)
@@ -276,7 +276,7 @@ defmodule Scrapex.ParserTest.Functions do
       AST.binary_op(
         AST.function_app(
           AST.identifier("f"),
-          AST.binary_op(AST.identifier("x"), :dot, AST.identifier("y"))
+          AST.field_access(AST.identifier("x"), AST.identifier("y"))
         ),
         :plus,
         AST.identifier("z")

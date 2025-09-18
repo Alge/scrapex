@@ -32,6 +32,8 @@ defmodule Scrapex.AST.Expression do
   @type function_app :: {:function_app, function :: t(), argument :: t()}
   @type type_declaration :: {:type_declaration, name :: String.t(), variants :: [Type.variant()]}
 
+  @type field_access :: {:field_access, source :: t(), field :: Identifier.t()}
+
   # function_application, etc., here in the same style.
 
   @typedoc "The main union type for any valid expression."
@@ -51,6 +53,7 @@ defmodule Scrapex.AST.Expression do
           | Type.type_annotation()
           | function_app()
           | type_declaration()
+          | field_access()
 
   # =============================================================================
   # CONSTRUCTORS
@@ -64,4 +67,5 @@ defmodule Scrapex.AST.Expression do
   def pattern_match_expression(clauses), do: {:pattern_match_expression, clauses}
   def function_app(identifier, argument), do: {:function_app, identifier, argument}
   def type_declaration(name, variants), do: {:type_declaration, name, variants}
+  def field_access(source, field), do: {:field_access, source, field}
 end

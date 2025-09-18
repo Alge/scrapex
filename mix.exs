@@ -41,7 +41,8 @@ defmodule Scrapex.MixProject do
         coveralls: :test,
         "coveralls.detail": :test,
         "coveralls.post": :test,
-        "coveralls.html": :test
+        "coveralls.html": :test,
+        "test.one": :test
       ]
     ]
   end
@@ -100,7 +101,8 @@ defmodule Scrapex.MixProject do
         "sobelow --exit",
         "test --warnings-as-errors",
         "coveralls --minimum-coverage 80"
-      ]
+      ],
+      "test.one": ["test --max-failures 1 --seed 0"]
     ]
   end
 end
