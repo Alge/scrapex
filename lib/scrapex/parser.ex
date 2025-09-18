@@ -109,6 +109,16 @@ defmodule Scrapex.Parser do
               {:error, reason}
           end
 
+        next_token.type == :semicolon and next_precedence > precedence_context ->
+          case parse_expression(tl(token_list), next_precedence - 1) do
+            {:ok, expression, rest} ->
+              new_left_ast = AST.where(left_ast, expression)
+              parse_infix_expression(rest, new_left_ast, precedence_context)
+
+            {:error, reason} ->
+              {:error, reason}
+          end
+
         next_token.type == :double_colon and next_precedence > precedence_context ->
           # The precedence of `::` is 8.
           case parse_expression(tl(token_list), next_precedence) do

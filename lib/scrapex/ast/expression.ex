@@ -36,6 +36,7 @@ defmodule Scrapex.AST.Expression do
 
   @type variant_constructor :: {:variant_constructor, type :: t(), variant :: t()}
 
+  @type where :: {:where, body :: t(), bindings :: t()}
   # function_application, etc., here in the same style.
 
   @typedoc "The main union type for any valid expression."
@@ -57,6 +58,7 @@ defmodule Scrapex.AST.Expression do
           | type_declaration()
           | field_access()
           | variant_constructor()
+          | where()
 
   # =============================================================================
   # CONSTRUCTORS
@@ -72,4 +74,5 @@ defmodule Scrapex.AST.Expression do
   def type_declaration(name, variants), do: {:type_declaration, name, variants}
   def field_access(source, field), do: {:field_access, source, field}
   def variant_constructor(type, variant), do: {:variant_constructor, type, variant}
+  def where(body, bindings), do: {:where, body, bindings}
 end

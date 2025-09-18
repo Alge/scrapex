@@ -65,9 +65,8 @@ defmodule Scrapex.Parser.PatternTest do
       ]
 
       expected =
-        AST.binary_op(
+        AST.where(
           AST.identifier("f"),
-          :semicolon,
           AST.binary_op(
             AST.identifier("f"),
             :equals,

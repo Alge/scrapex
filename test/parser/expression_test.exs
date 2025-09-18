@@ -221,4 +221,36 @@ defmodule Scrapex.Parser.ExpressionTest do
 
     assert {:ok, ^expected} = Parser.parse(input)
   end
+
+  test "parses chained where-clauses with correct right-associativity" do
+    # Input: "a + b ; a = 1 ; b = 2"
+    # This should be parsed as: (a + b) ; (a = 1 ; b = 2)
+    input = [
+      Token.new(:identifier, "a", 1, 1),
+      Token.new(:plus, 1, 3),
+      Token.new(:identifier, "b", 1, 5),
+      Token.new(:semicolon, 1, 7),
+      Token.new(:identifier, "a", 1, 9),
+      Token.new(:equals, 1, 11),
+      Token.new(:integer, 1, 1, 13),
+      Token.new(:semicolon, 1, 15),
+      Token.new(:identifier, "b", 1, 17),
+      Token.new(:equals, 1, 19),
+      Token.new(:integer, 2, 1, 21),
+      Token.new(:eof, 1, 22)
+    ]
+
+    expected =
+      AST.where(
+        # The `body` is the `a + b` expression.
+        AST.binary_op(AST.identifier("a"), :plus, AST.identifier("b")),
+        # The `bindings` part is itself another `where`-clause, showing right-associativity.
+        AST.where(
+          AST.binary_op(AST.identifier("a"), :equals, AST.integer(1)),
+          AST.binary_op(AST.identifier("b"), :equals, AST.integer(2))
+        )
+      )
+
+    assert {:ok, ^expected} = Parser.parse(input)
+  end
 end

@@ -60,9 +60,8 @@ defmodule Scrapex.Parser.TypeTest do
     ]
 
     expected =
-      Expression.binary_op(
+      Expression.where(
         AST.identifier("x"),
-        :semicolon,
         Expression.type_declaration("x", [AST.variant("a"), AST.variant("b")])
       )
 
