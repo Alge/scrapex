@@ -6,7 +6,7 @@ defmodule Scrapex.CLI do
   Provides commands to lex, parse, and evaluate ScrapScript.
   """
 
-  alias Scrapex.{Lexer, Parser, Token}
+  alias Scrapex.{Lexer, Parser, Token, Evaluator, Value, Evaluator.Scope}
 
   def main(args) do
     case args do
@@ -16,8 +16,8 @@ defmodule Scrapex.CLI do
       ["parse" | rest_args] ->
         run_parse(rest_args)
 
-      ["eval" | _rest_args] ->
-        run_eval()
+      ["eval" | rest_args] ->
+        run_eval(rest_args)
 
       ["--help"] ->
         print_global_help()
@@ -50,8 +50,10 @@ defmodule Scrapex.CLI do
     handle_input(args, options_spec, command_help, &parse_and_print/2)
   end
 
-  defp run_eval do
-    IO.puts("The 'eval' command is not yet implemented.")
+  defp run_eval(args) do
+    options_spec = [code: :string]
+    command_help = eval_help()
+    handle_input(args, options_spec, command_help, &eval_and_print/2)
   end
 
   # =============================================================================
@@ -137,6 +139,36 @@ defmodule Scrapex.CLI do
     end
   end
 
+  # Action function for the 'eval' command (the full pipeline).
+  defp eval_and_print(input, source) do
+    case Lexer.tokenize(input) do
+      tokens when is_list(tokens) ->
+        case Parser.parse(tokens) do
+          {:ok, ast} ->
+            # Create empty scope for evaluation
+            scope = Scope.empty()
+
+            case Evaluator.eval(ast, scope) do
+              {:ok, value} ->
+                IO.puts("Successfully evaluated #{source}:")
+                IO.puts(Value.display!(value))
+
+              {:error, reason} ->
+                IO.puts(:stderr, "Evaluation error in #{source}: #{reason}")
+                System.halt(1)
+            end
+
+          {:error, reason} ->
+            IO.puts(:stderr, "Parser error in #{source}: #{reason}")
+            System.halt(1)
+        end
+
+      {:error, reason} ->
+        IO.puts(:stderr, "Lexer error in #{source}: #{reason}")
+        System.halt(1)
+    end
+  end
+
   # =============================================================================
   # HELPER FUNCTIONS
   # =============================================================================
@@ -162,7 +194,7 @@ defmodule Scrapex.CLI do
     COMMANDS:
         lex           Tokenize the input. Use `scrapex lex --help` for details.
         parse         Parse the input. Use `scrapex parse --help` for details.
-        eval          (Not implemented) Evaluate the input.
+        eval          Evaluate the input. Use `scrapex eval --help` for details.
 
     GLOBAL OPTIONS:
         -h, --help    Show this help message.
@@ -190,6 +222,20 @@ defmodule Scrapex.CLI do
         scrapex parse -c "CODE"
 
     Parses the input from a file, stdin, or a command-line string.
+
+    OPTIONS:
+        -c, --code STRING     Provide the input code as a string.
+        -h, --help            Show this help message.
+    """
+  end
+
+  defp eval_help do
+    """
+    USAGE:
+        scrapex eval [FILE]
+        scrapex eval -c "CODE"
+
+    Evaluates the input from a file, stdin, or a command-line string.
 
     OPTIONS:
         -c, --code STRING     Provide the input code as a string.
