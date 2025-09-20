@@ -67,9 +67,8 @@ defmodule Scrapex.Parser.PatternTest do
       expected =
         AST.where(
           AST.identifier("f"),
-          AST.binary_op(
-            AST.identifier("f"),
-            :equals,
+          AST.binding(
+            "f",
             AST.pattern_match_expression([
               AST.pattern_clause(AST.identifier("x"), AST.identifier("x"))
             ])

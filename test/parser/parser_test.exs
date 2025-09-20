@@ -2,31 +2,6 @@ defmodule Scrapex.ParserTest do
   use ExUnit.Case
   alias Scrapex.{Parser, AST, Token}
 
-  test "parses a where-clause expression using a semicolon" do
-    # Input represents "123; 456"
-    input = [
-      Token.new(:integer, 123, 1, 1),
-      Token.new(:semicolon, 1, 4),
-      Token.new(:identifier, "x", 1, 5),
-      Token.new(:equals, 1, 4),
-      Token.new(:integer, 456, 1, 5),
-      Token.new(:eof, 1, 8)
-    ]
-
-    expected =
-      AST.where(
-        AST.integer(123),
-        AST.binary_op(
-          AST.identifier("x"),
-          :equals,
-          AST.integer(456)
-        )
-      )
-
-    assert {:ok, result} = Parser.parse(input)
-    assert result == expected
-  end
-
   test "parses a simple binary expression with plus" do
     # Input represents "1 + 2"
     input = [

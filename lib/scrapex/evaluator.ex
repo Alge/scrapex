@@ -33,6 +33,31 @@ defmodule Scrapex.Evaluator do
           {:error, :not_found} -> {:error, "Undefined variable: '#{name}'"}
         end
 
+      {:binary_op, _left_node, :equals, _right_node} ->
+        nil
+
+      {:binary_op, left_node, :plus, right_node} ->
+        with {:ok, left_value} <- eval(left_node, scope),
+             {:ok, right_value} <- eval(right_node, scope),
+             {:ok, result} <- Value.add(left_value, right_value) do
+          {:ok, result}
+        end
+
+        # TODO
+        nil
+
+      {:binary_op, _left_node, :minus, _right_node} ->
+        # TODO
+        nil
+
+      {:binary_op, _left_node, :mulptiply, _right_node} ->
+        # TODO
+        nil
+
+      {:binary_op, _left_node, :slash, _right_node} ->
+        # TODO
+        nil
+
       # Catch-all for unimplemented AST nodes
       other ->
         {:error, "Unimplemented AST node: #{inspect(other)}"}

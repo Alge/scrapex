@@ -8,7 +8,7 @@ defmodule Scrapex.AST do
   The actual implementations are in focused submodules.
   """
 
-  alias Scrapex.AST.{Literal, Pattern, Identifier, Expression, Type, Record}
+  alias Scrapex.AST.{Literal, Pattern, Identifier, Expression, Type, Record, Binding}
 
   # =============================================================================
   # TOP-LEVEL TYPES
@@ -73,6 +73,9 @@ defmodule Scrapex.AST do
   defdelegate record_rest(pattern), to: Record
   defdelegate record_expression_field(key, expression), to: Record
   defdelegate record_pattern_field(key, pattern), to: Record
+
+  # === BINDING CONSTRUCTORS ===
+  defdelegate binding(name, value_expr), to: Binding
 
   # =============================================================================
   # CONVENIENCE FUNCTIONS

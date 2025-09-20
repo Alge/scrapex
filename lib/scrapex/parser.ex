@@ -110,9 +110,9 @@ defmodule Scrapex.Parser do
           end
 
         next_token.type == :semicolon and next_precedence > precedence_context ->
-          case parse_expression(tl(token_list), next_precedence - 1) do
-            {:ok, expression, rest} ->
-              new_left_ast = AST.where(left_ast, expression)
+          case parse_bindings(tl(token_list)) do
+            {:ok, binding_ast, rest} ->
+              new_left_ast = AST.where(left_ast, binding_ast)
               parse_infix_expression(rest, new_left_ast, precedence_context)
 
             {:error, reason} ->
@@ -161,6 +161,67 @@ defmodule Scrapex.Parser do
         true ->
           {:ok, left_ast, token_list}
       end
+    end
+  end
+
+  # --- Parsing of bindings ---
+
+  defp parse_bindings(token_list) do
+    case parse_one_binding(token_list) do
+      {:ok, binding_ast, [%Token{type: :semicolon} | rest]} ->
+        # Chain with next binding
+        case parse_bindings(rest) do
+          {:ok, next_binding, final_remaining} ->
+            {:ok, AST.where(binding_ast, next_binding), final_remaining}
+
+          error ->
+            error
+        end
+
+      {:ok, binding_ast, remaining} ->
+        # Last binding in chain
+        {:ok, binding_ast, remaining}
+
+      error ->
+        error
+    end
+  end
+
+  defp parse_one_binding(token_list) do
+    case token_list do
+      # identifier = expression
+      [%Token{type: :identifier, value: name}, %Token{type: :equals} | rest] ->
+        case parse_expression(rest, get_infix_precedence(:semicolon) + 1) do
+          {:ok, expr, remaining} -> {:ok, AST.binding(name, expr), remaining}
+          {:error, reason} -> {:error, reason}
+        end
+
+      # identifier : type_expression (type declaration/annotation)
+      [%Token{type: :identifier, value: name}, %Token{type: :colon} | rest] ->
+        case rest do
+          [%Token{type: :hashtag} | _] ->
+            # Type declaration: x : #variant #variant
+            case parse_type_union_as_expression(rest) do
+              {:ok, {:type_union, variants}, remaining} ->
+                {:ok, AST.type_declaration(name, variants), remaining}
+
+              {:error, reason} ->
+                {:error, reason}
+            end
+
+          _ ->
+            # Type annotation: x : typename
+            case parse_expression(rest, get_infix_precedence(:semicolon) + 1) do
+              {:ok, type_expr, remaining} ->
+                {:ok, AST.type_annotation(AST.identifier(name), type_expr), remaining}
+
+              {:error, reason} ->
+                {:error, reason}
+            end
+        end
+
+      _ ->
+        {:error, "Expected binding pattern: identifier = expression or identifier : type"}
     end
   end
 
@@ -712,7 +773,6 @@ defmodule Scrapex.Parser do
   defp get_infix_precedence(%Token{type: type}) do
     case type do
       :semicolon -> 1
-      :equals -> 2
       :colon -> 3
       # |>
       :pipe_operator -> 4

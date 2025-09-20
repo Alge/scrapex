@@ -216,7 +216,7 @@ defmodule Scrapex.Parser.ExpressionTest do
     expected =
       AST.where(
         AST.identifier("x"),
-        AST.binary_op(AST.identifier("x"), :equals, AST.integer(1))
+        AST.binding("x", AST.integer(1))
       )
 
     assert {:ok, ^expected} = Parser.parse(input)
@@ -242,12 +242,10 @@ defmodule Scrapex.Parser.ExpressionTest do
 
     expected =
       AST.where(
-        # The `body` is the `a + b` expression.
         AST.binary_op(AST.identifier("a"), :plus, AST.identifier("b")),
-        # The `bindings` part is itself another `where`-clause, showing right-associativity.
         AST.where(
-          AST.binary_op(AST.identifier("a"), :equals, AST.integer(1)),
-          AST.binary_op(AST.identifier("b"), :equals, AST.integer(2))
+          AST.binding("a", AST.integer(1)),
+          AST.binding("b", AST.integer(2))
         )
       )
 
