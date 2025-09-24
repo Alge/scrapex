@@ -192,7 +192,6 @@ defmodule Scrapex.EvaluatorTest do
   end
 
   describe "where clauses" do
-    @tag :skip
     test "evaluates simple where clause" do
       # x ; x = 42
       ast_node =
@@ -200,7 +199,7 @@ defmodule Scrapex.EvaluatorTest do
           # body: x
           AST.identifier("x"),
           # binding: x = 42
-          AST.binary_op(AST.identifier("x"), :equals, AST.integer(42))
+          AST.binding("x", AST.integer(42))
         )
 
       scope = Scope.empty()
@@ -209,7 +208,6 @@ defmodule Scrapex.EvaluatorTest do
       assert result == {:ok, Value.integer(42)}
     end
 
-    @tag :skip
     test "evaluates where clause with dependency" do
       # y ; y = x + 5 ; x = 10
       ast_node =
@@ -218,13 +216,15 @@ defmodule Scrapex.EvaluatorTest do
           AST.identifier("y"),
           AST.where(
             # binding: y = x + 5
-            AST.binary_op(
-              AST.identifier("y"),
-              :equals,
-              AST.binary_op(AST.identifier("x"), :plus, AST.integer(5))
+            AST.binding(
+              "y",
+              AST.binary_op(
+                AST.identifier("x"),
+                :plus,
+                AST.integer(5)
+              )
             ),
-            # binding: x = 10
-            AST.binary_op(AST.identifier("x"), :equals, AST.integer(10))
+            AST.binding("x", AST.integer(10))
           )
         )
 

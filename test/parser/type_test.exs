@@ -14,7 +14,7 @@ defmodule Scrapex.Parser.TypeTest do
       Token.new(:eof, 1, 13)
     ]
 
-    expected = Expression.type_declaration("bool", [AST.variant("true")])
+    expected = Expression.type_declaration("bool", AST.type_union([AST.variant("true")]))
 
     assert {:ok, result} = Parser.parse(input)
     assert result == expected
@@ -35,11 +35,14 @@ defmodule Scrapex.Parser.TypeTest do
     ]
 
     expected =
-      Expression.type_declaration("scoop", [
-        AST.variant("vanilla"),
-        AST.variant("chocolate"),
-        AST.variant("strawberry")
-      ])
+      Expression.type_declaration(
+        "scoop",
+        AST.type_union([
+          AST.variant("vanilla"),
+          AST.variant("chocolate"),
+          AST.variant("strawberry")
+        ])
+      )
 
     assert {:ok, result} = Parser.parse(input)
     assert result == expected
@@ -62,7 +65,10 @@ defmodule Scrapex.Parser.TypeTest do
     expected =
       Expression.where(
         AST.identifier("x"),
-        Expression.type_declaration("x", [AST.variant("a"), AST.variant("b")])
+        Expression.type_declaration(
+          "x",
+          AST.type_union([AST.variant("a"), AST.variant("b")])
+        )
       )
 
     assert {:ok, result} = Parser.parse(input)
@@ -106,7 +112,10 @@ defmodule Scrapex.Parser.TypeTest do
 
     expected =
       Expression.binary_op(
-        Expression.type_declaration("t", [AST.variant("a"), AST.variant("b")]),
+        Expression.type_declaration(
+          "t",
+          AST.type_union([AST.variant("a"), AST.variant("b")])
+        ),
         :plus,
         AST.integer(1)
       )

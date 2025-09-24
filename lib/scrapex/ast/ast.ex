@@ -76,6 +76,7 @@ defmodule Scrapex.AST do
 
   # === BINDING CONSTRUCTORS ===
   defdelegate binding(name, value_expr), to: Binding
+  defdelegate typed_binding(name, type_expr, value_expr), to: Binding
 
   # =============================================================================
   # CONVENIENCE FUNCTIONS

@@ -5,7 +5,6 @@ defmodule Scrapex.Parser.BindingTest do
   alias Scrapex.{Parser, Token, AST}
 
   describe "assignment expressions (should become parse errors)" do
-    @tag :skip
     test "standalone assignment should be parse error" do
       # Input: "x = 42" (not in where clause)
       input = [
@@ -19,7 +18,6 @@ defmodule Scrapex.Parser.BindingTest do
       assert {:error, _reason} = Parser.parse(input)
     end
 
-    @tag :skip
     test "assignment in arithmetic expression should be parse error" do
       # Input: "1 + (x = 42)" - assignment not allowed in expression context
       input = [
@@ -111,7 +109,6 @@ defmodule Scrapex.Parser.BindingTest do
   end
 
   describe "typed bindings (future feature)" do
-    @tag :skip
     test "parses typed variable binding" do
       # Input: "x ; x : int = 42"
       input = [
@@ -134,7 +131,6 @@ defmodule Scrapex.Parser.BindingTest do
       assert {:ok, ^expected} = Parser.parse(input)
     end
 
-    @tag :skip
     test "parses type declaration binding" do
       # Input: "t ; t : #variant1 #variant2"
       input = [
@@ -152,7 +148,7 @@ defmodule Scrapex.Parser.BindingTest do
       expected =
         AST.where(
           AST.identifier("t"),
-          {:type_binding, "t",
+          {:type_declaration, "t",
            AST.type_union([
              AST.variant("variant1"),
              AST.variant("variant2")
@@ -184,7 +180,10 @@ defmodule Scrapex.Parser.BindingTest do
         AST.where(
           AST.identifier("result"),
           AST.where(
-            AST.type_declaration("person", [AST.variant("cowboy")]),
+            AST.type_declaration(
+              "person",
+              AST.type_union([AST.variant("cowboy")])
+            ),
             AST.binding("x", AST.integer(42))
           )
         )
@@ -192,7 +191,6 @@ defmodule Scrapex.Parser.BindingTest do
       assert {:ok, ^expected} = Parser.parse(input)
     end
 
-    @tag :skip
     test "parses type annotation followed by assignment" do
       # Input: "result ; x : int ; y = 42"
       input = [

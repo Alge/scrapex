@@ -72,8 +72,8 @@ defmodule Scrapex.Parser do
             # This is the type declaration case we want to handle
             {{:identifier, name}, true} ->
               case parse_type_union_as_expression(rest_after_colon) do
-                {:ok, {:type_union, variants}, remaining_tokens} ->
-                  type_decl = AST.type_declaration(name, variants)
+                {:ok, type_union, remaining_tokens} ->
+                  type_decl = AST.type_declaration(name, type_union)
                   parse_infix_expression(remaining_tokens, type_decl, precedence_context)
 
                 {:error, reason} ->
@@ -189,39 +189,54 @@ defmodule Scrapex.Parser do
 
   defp parse_one_binding(token_list) do
     case token_list do
-      # identifier = expression
+      # Simple binding: identifier = expression
       [%Token{type: :identifier, value: name}, %Token{type: :equals} | rest] ->
         case parse_expression(rest, get_infix_precedence(:semicolon) + 1) do
           {:ok, expr, remaining} -> {:ok, AST.binding(name, expr), remaining}
           {:error, reason} -> {:error, reason}
         end
 
-      # identifier : type_expression (type declaration/annotation)
+      # Type-related: identifier : type [= expression]
       [%Token{type: :identifier, value: name}, %Token{type: :colon} | rest] ->
-        case rest do
-          [%Token{type: :hashtag} | _] ->
-            # Type declaration: x : #variant #variant
-            case parse_type_union_as_expression(rest) do
-              {:ok, {:type_union, variants}, remaining} ->
-                {:ok, AST.type_declaration(name, variants), remaining}
-
-              {:error, reason} ->
-                {:error, reason}
-            end
-
-          _ ->
-            # Type annotation: x : typename
-            case parse_expression(rest, get_infix_precedence(:semicolon) + 1) do
-              {:ok, type_expr, remaining} ->
-                {:ok, AST.type_annotation(AST.identifier(name), type_expr), remaining}
-
-              {:error, reason} ->
-                {:error, reason}
-            end
-        end
+        parse_typed_construct(name, rest)
 
       _ ->
         {:error, "Expected binding pattern: identifier = expression or identifier : type"}
+    end
+  end
+
+  defp parse_typed_construct(name, rest) do
+    # Parse type expression (handles both #variants and regular types)
+    type_result =
+      case rest do
+        [%Token{type: :hashtag} | _] ->
+          parse_type_union_as_expression(rest)
+
+        _ ->
+          parse_expression(rest, get_infix_precedence(:semicolon) + 1)
+      end
+
+    case type_result do
+      {:ok, type_expr, [%Token{type: :equals} | value_rest]} ->
+        # Typed binding: x : type = value
+        case parse_expression(value_rest, get_infix_precedence(:semicolon) + 1) do
+          {:ok, value_expr, remaining} ->
+            {:ok, AST.typed_binding(name, type_expr, value_expr), remaining}
+
+          error ->
+            error
+        end
+
+      {:ok, {:type_union, _variants} = type_union, remaining} ->
+        # Type declaration: x : #variant #variant
+        {:ok, AST.type_declaration(name, type_union), remaining}
+
+      {:ok, type_expr, remaining} ->
+        # Type annotation: x : typename
+        {:ok, AST.type_annotation(AST.identifier(name), type_expr), remaining}
+
+      error ->
+        error
     end
   end
 

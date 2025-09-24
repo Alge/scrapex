@@ -3,6 +3,7 @@ defmodule Scrapex.Evaluator do
   ScrapScript expression evaluator.
   """
 
+  require Logger
   alias Scrapex.{Value, Evaluator.Scope}
 
   @spec eval(term()) :: {:ok, Value.t()} | {:error, String.t()}
@@ -16,6 +17,8 @@ defmodule Scrapex.Evaluator do
   """
   @spec eval(term(), Scope.t()) :: {:ok, Value.t()} | {:error, String.t()}
   def eval(ast_node, scope) do
+    Logger.debug("Evaluating node: #{inspect(ast_node)}")
+
     case ast_node do
       {:integer, value} ->
         {:ok, Value.integer(value)}
@@ -43,9 +46,6 @@ defmodule Scrapex.Evaluator do
           {:ok, result}
         end
 
-        # TODO
-        nil
-
       {:binary_op, _left_node, :minus, _right_node} ->
         # TODO
         nil
@@ -58,9 +58,44 @@ defmodule Scrapex.Evaluator do
         # TODO
         nil
 
+      {:where, body, binding_ast} ->
+        Logger.debug("Found a where clause!")
+        Logger.debug("Body: #{inspect(body)}")
+        Logger.debug("Binding: #{inspect(binding_ast)}")
+        # First evaluate the binding AST to get the scope
+        case eval_binding(binding_ast, scope) do
+          {:ok, modified_scope} ->
+            # Now that we have the modified scope we can evaluate the body
+            eval(body, modified_scope)
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+
       # Catch-all for unimplemented AST nodes
       other ->
         {:error, "Unimplemented AST node: #{inspect(other)}"}
+    end
+  end
+
+  # the binding is just another where clause, we need to loop a bit more?
+  defp eval_binding({:where, _} = ast_node, scope) do
+  end
+
+  # Regular bindings
+  defp eval_binding({:binding, name, expression}, scope) do
+    Logger.info("Binding variable #{name}")
+
+    case eval(expression, scope) do
+      {:ok, value} ->
+        Logger.debug("Binding'#{name}' =  #{inspect(value)}")
+        new_scope = Scope.bind(scope, name, value)
+
+        Logger.debug("New scope: #{inspect(new_scope)}")
+        {:ok, new_scope}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 end
