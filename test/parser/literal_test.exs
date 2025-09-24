@@ -23,7 +23,6 @@ defmodule Scrapex.ParserTest.Literals do
     # Identifier
     {:identifier, "x", AST.identifier("x")},
     {:identifier, "abc-123", AST.identifier("abc-123")}
-    # Note: variant_literal tests might need a new token type in the lexer.
   ]
 
   for {token_type, token_value, expected_ast} <- @literal_cases do

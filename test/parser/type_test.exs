@@ -124,8 +124,8 @@ defmodule Scrapex.Parser.TypeTest do
     assert result == expected
   end
 
-  test "rejects type declaration with non-identifier left side" do
-    # Input: "123 : #a" (numbers can't be type names)
+  test "parses type annotation with non-identifier left side (will fail at evaluation)" do
+    # Input: "123 : #a" (parseable but semantically invalid)
     input = [
       Token.new(:integer, 123, 1, 1),
       Token.new(:colon, 1, 5),
@@ -134,12 +134,11 @@ defmodule Scrapex.Parser.TypeTest do
       Token.new(:eof, 1, 9)
     ]
 
-    # CORRECTED: This should parse as a type_annotation. The parser correctly
-    # identifies the RHS `#a` as a type_union.
+    # Parser succeeds: creates type annotation with atomic tag
     expected =
       AST.type_annotation(
         AST.integer(123),
-        AST.type_union([AST.variant("a")])
+        AST.variant("a")
       )
 
     assert {:ok, result} = Parser.parse(input)

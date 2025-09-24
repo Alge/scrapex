@@ -132,6 +132,22 @@ defmodule Scrapex.Parser do
               {:error, reason}
           end
 
+        next_token.type == :right_arrow and next_precedence > precedence_context ->
+          # A lambda declaration, this is just a special
+          # case of a pattern match expression!
+
+          # Parse the body of the lambda
+          case parse_expression(tl(token_list), 0) do
+            {:ok, body_ast, rest} ->
+              pattern_clause = AST.pattern_clause(left_ast, body_ast)
+              new_left_ast = AST.pattern_match_expression([pattern_clause])
+
+              parse_infix_expression(rest, new_left_ast, precedence_context)
+
+            {:error, reason} ->
+              {:error, reason}
+          end
+
         # There is currently nothing with higher precedence than 40, but let'readabilitys check
         # anyways for completeness and to reduce risk of bugs in the future!
         can_start_function_argument?(next_token) and
@@ -672,8 +688,19 @@ defmodule Scrapex.Parser do
 
   # --- Prefix Expression Workers ---
   defp parse_prefix(:hashtag, token_list) do
-    # Parse type union starting with #
-    parse_type_union_as_expression(token_list)
+    case parse_type_union(token_list, []) do
+      {:ok, [single_variant], remaining_tokens} ->
+        # Single variant -> return as atomic tag
+        {:ok, single_variant, remaining_tokens}
+
+      {:ok, multiple_variants, remaining_tokens} ->
+        # Multiple variants -> wrap in type_union
+        type_union = AST.type_union(multiple_variants)
+        {:ok, type_union, remaining_tokens}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   defp parse_prefix(:pipe, token_list) do
@@ -696,6 +723,10 @@ defmodule Scrapex.Parser do
 
   defp parse_prefix(:left_bracket, [_bracket_token | rest]) do
     parse_list_literal(rest)
+  end
+
+  defp parse_prefix(:underscore, [_token | rest]) do
+    {:ok, AST.wildcard(), rest}
   end
 
   defp parse_prefix(:integer, [%Token{value: value} | rest]) do
@@ -835,7 +866,6 @@ defmodule Scrapex.Parser do
 
   defp can_start_function_argument?(token) do
     result = can_start_prefix_expression?(token) and get_infix_precedence(token) == 0
-    Logger.debug("can_start_function_argument? for #{inspect(token.type)} -> #{result}")
     result
   end
 end

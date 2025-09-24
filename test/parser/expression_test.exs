@@ -251,4 +251,32 @@ defmodule Scrapex.Parser.ExpressionTest do
 
     assert {:ok, ^expected} = Parser.parse(input)
   end
+
+  test "parses a standalone wildcard expression" do
+    # This is the most fundamental test to prove the parser can begin an
+    # expression with a wildcard. It isolates the `parse_prefix` logic.
+    # Input: "_"
+    input = [
+      Token.new(:underscore, nil, 1, 1),
+      Token.new(:eof, 1, 2)
+    ]
+
+    expected = AST.wildcard()
+
+    assert {:ok, ^expected} = Parser.parse(input)
+  end
+
+  test "parses single variant as atomic literal in expression context" do
+    # Input: "#true"
+    input = [
+      Token.new(:hashtag, 1, 1),
+      Token.new(:identifier, "true", 1, 2),
+      Token.new(:eof, 1, 6)
+    ]
+
+    # Should be atomic variant, not wrapped in type_union
+    expected = AST.variant("true")
+
+    assert {:ok, ^expected} = Parser.parse(input)
+  end
 end

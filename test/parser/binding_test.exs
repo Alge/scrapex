@@ -218,4 +218,25 @@ defmodule Scrapex.Parser.BindingTest do
       assert {:ok, ^expected} = Parser.parse(input)
     end
   end
+
+  test "parses binding with atomic tag value in where clause" do
+    # Input: "x ; x = #false"
+    input = [
+      Token.new(:identifier, "x", 1, 1),
+      Token.new(:semicolon, 1, 3),
+      Token.new(:identifier, "x", 1, 5),
+      Token.new(:equals, 1, 7),
+      Token.new(:hashtag, 1, 9),
+      Token.new(:identifier, "false", 1, 10),
+      Token.new(:eof, 1, 15)
+    ]
+
+    expected =
+      AST.where(
+        AST.identifier("x"),
+        AST.binding("x", AST.variant("false"))
+      )
+
+    assert {:ok, ^expected} = Parser.parse(input)
+  end
 end

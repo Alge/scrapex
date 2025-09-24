@@ -65,6 +65,7 @@ defmodule Scrapex.AST do
   defdelegate field_access(source, field), to: Expression
   defdelegate variant_constructor(type, variant), to: Expression
   defdelegate where(body, bindings), to: Expression
+  defdelegate function_expression(pattern_match_expr, closure), to: Expression
 
   # === RECORD CONSTRUCTORS ===
   defdelegate record_literal(fields), to: Record

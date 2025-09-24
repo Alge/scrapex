@@ -3,6 +3,13 @@ defmodule Scrapex.EvaluatorTest do
   alias Scrapex.{Evaluator, AST, Value, Evaluator.Scope}
 
   describe "Literals and Variables" do
+    test "evaluates variant literal" do
+      ast_node = AST.variant("true")
+      result = Evaluator.eval(ast_node)
+
+      assert result == {:ok, Value.variant("true")}
+    end
+
     test "evaluates integer literal" do
       # Create an integer AST node
       ast_node = AST.integer(42)
@@ -84,7 +91,6 @@ defmodule Scrapex.EvaluatorTest do
   end
 
   describe "binary operations" do
-    @tag :skip
     test "evaluates integer addition" do
       # 1 + 2
       ast_node = AST.binary_op(AST.integer(1), :plus, AST.integer(2))
@@ -94,7 +100,15 @@ defmodule Scrapex.EvaluatorTest do
       assert result == {:ok, Value.integer(3)}
     end
 
-    @tag :skip
+    test "evaluates float addition" do
+      # 1.5 + 2.3
+      ast_node = AST.binary_op(AST.float(1.5), :plus, AST.float(2.3))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.float(3.8)}
+    end
+
     test "evaluates integer subtraction" do
       # 5 - 3
       ast_node = AST.binary_op(AST.integer(5), :minus, AST.integer(3))
@@ -104,7 +118,15 @@ defmodule Scrapex.EvaluatorTest do
       assert result == {:ok, Value.integer(2)}
     end
 
-    @tag :skip
+    test "evaluates float subtraction" do
+      # 5.7 - 3.2
+      ast_node = AST.binary_op(AST.float(5.7), :minus, AST.float(3.2))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.float(2.5)}
+    end
+
     test "evaluates integer multiplication" do
       # 4 * 3
       ast_node = AST.binary_op(AST.integer(4), :multiply, AST.integer(3))
@@ -114,17 +136,33 @@ defmodule Scrapex.EvaluatorTest do
       assert result == {:ok, Value.integer(12)}
     end
 
-    @tag :skip
+    test "evaluates float multiplication" do
+      # 4.0 * 3.5
+      ast_node = AST.binary_op(AST.float(4.0), :multiply, AST.float(3.5))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.float(14.0)}
+    end
+
     test "evaluates integer division" do
-      # 6 / 2 (should return float in ScrapScript)
+      # 6 / 2
       ast_node = AST.binary_op(AST.integer(6), :slash, AST.integer(2))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.integer(3)}
+    end
+
+    test "evaluates float division" do
+      # 9.0 / 3.0
+      ast_node = AST.binary_op(AST.float(9.0), :slash, AST.float(3.0))
       scope = Scope.empty()
       result = Evaluator.eval(ast_node, scope)
 
       assert result == {:ok, Value.float(3.0)}
     end
 
-    @tag :skip
     test "evaluates text concatenation" do
       # "hello" ++ " world"
       ast_node = AST.binary_op(AST.text("hello"), :double_plus, AST.text(" world"))
@@ -134,7 +172,6 @@ defmodule Scrapex.EvaluatorTest do
       assert result == {:ok, Value.text("hello world")}
     end
 
-    @tag :skip
     test "evaluates binary operation with variables" do
       # x + y; x=10; y=20
       ast_node = AST.binary_op(AST.identifier("x"), :plus, AST.identifier("y"))
@@ -149,7 +186,6 @@ defmodule Scrapex.EvaluatorTest do
       assert result == {:ok, Value.integer(30)}
     end
 
-    @tag :skip
     test "evaluates nested binary operations" do
       # (1 + 2) * 3
       inner = AST.binary_op(AST.integer(1), :plus, AST.integer(2))
@@ -160,34 +196,35 @@ defmodule Scrapex.EvaluatorTest do
       assert result == {:ok, Value.integer(9)}
     end
 
-    @tag :skip
     test "returns error for type mismatch in binary operation" do
       # 1 + "hello" should fail
       ast_node = AST.binary_op(AST.integer(1), :plus, AST.text("hello"))
       scope = Scope.empty()
       result = Evaluator.eval(ast_node, scope)
 
-      assert {:error, "Cannot add integer and text"} = result
+      assert {:error,
+              "Operator '+' not supported between value '{:integer, 1}' and '{:text, \"hello\"}'"} =
+               result
     end
 
-    @tag :skip
     test "returns error for undefined variable in binary operation" do
       # x + 1 where x is undefined
       ast_node = AST.binary_op(AST.identifier("x"), :plus, AST.integer(1))
       scope = Scope.empty()
       result = Evaluator.eval(ast_node, scope)
 
-      assert {:error, "Undefined variable: x"} = result
+      assert {:error, "Undefined variable: 'x'"} = result
     end
 
-    @tag :skip
     test "returns error for unimplemented binary operator" do
       # Test with an operator we haven't implemented
       ast_node = AST.binary_op(AST.integer(1), :some_future_op, AST.integer(2))
       scope = Scope.empty()
       result = Evaluator.eval(ast_node, scope)
 
-      assert {:error, "Unimplemented binary operator: some_future_op"} = result
+      assert {:error,
+              "Unimplemented AST node: {:binary_op, {:integer, 1}, :some_future_op, {:integer, 2}}"} =
+               result
     end
   end
 

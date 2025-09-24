@@ -1,12 +1,21 @@
 defmodule Scrapex.Value do
+  alias Scrapex.Evaluator.Scope
+  alias Scrapex.AST.Expression
+
   @type t ::
           {:integer, integer()}
           | {:float, float()}
           | {:text, String.t()}
+          | {:list, [t()]}
+          | {:function, Expression.pattern_match_expression(), Scope.t()}
+          | {:variant, String.t()}
 
   def integer(i) when is_integer(i), do: {:integer, i}
   def float(f) when is_float(f), do: {:float, f}
   def text(s) when is_binary(s), do: {:text, s}
+  def list(l) when is_list(l), do: {:list, l}
+  def function(expr, closure), do: {:function, expr, closure}
+  def variant(name) when is_binary(name), do: {:variant, name}
 
   def display!(value) do
     case display(value) do
@@ -16,6 +25,24 @@ defmodule Scrapex.Value do
       {:error, reason} ->
         raise reason
     end
+  end
+
+  def display({:list, elements}) do
+    case display_list_elements(elements, []) do
+      {:ok, element_strings} ->
+        {:ok, "[#{Enum.join(element_strings, ", ")}]"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  def display({:variant, name}) do
+    {:ok, "##{name}"}
+  end
+
+  def display({:function, _, _}) do
+    {:ok, "<function>"}
   end
 
   def display({:integer, value}) do
@@ -34,9 +61,37 @@ defmodule Scrapex.Value do
     {:error, "Don't know how to convert value '#{inspect(value)}' to string"}
   end
 
+  defp display_list_elements([], acc) do
+    {:ok, Enum.reverse(acc)}
+  end
+
+  defp display_list_elements([element | rest], acc) do
+    case display(element) do
+      {:ok, str} -> display_list_elements(rest, [str | acc])
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
   #######################################
   ############## Operators ##############
   #######################################
+
+  ##############  Negate   ##############
+
+  def negate!(value) do
+    case negate(value) do
+      {:ok, value} -> value
+      {:error, reason} -> raise reason
+    end
+  end
+
+  def negate({type, value}) when type in [:integer, :float] do
+    {:ok, {type, value * -1}}
+  end
+
+  def negate(value) do
+    {:error, "Cannot negate value: #{inspect(value)}"}
+  end
 
   ##############    Add    ##############
   def add!(a, b) do

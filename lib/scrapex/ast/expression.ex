@@ -38,6 +38,9 @@ defmodule Scrapex.AST.Expression do
 
   @type where :: {:where, body :: t(), binding :: t()}
 
+  @type function_expression ::
+          {:function, pattern_match_expr :: pattern_match_expression(), closure :: Scope.t()}
+
   # function_application, etc., here in the same style.
 
   @typedoc "The main union type for any valid expression."
@@ -61,6 +64,7 @@ defmodule Scrapex.AST.Expression do
           | variant_constructor()
           | where()
           | Binding.t()
+          | function_expression()
 
   # =============================================================================
   # CONSTRUCTORS
@@ -77,4 +81,5 @@ defmodule Scrapex.AST.Expression do
   def field_access(source, field), do: {:field_access, source, field}
   def variant_constructor(type, variant), do: {:variant_constructor, type, variant}
   def where(body, binding), do: {:where, body, binding}
+  def function_expression(patter_match_expr, closure), do: {:function, patter_match_expr, closure}
 end
