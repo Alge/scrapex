@@ -623,4 +623,48 @@ defmodule Scrapex.ParserTest.Functions do
       assert {:ok, ^expected} = Parser.parse(input)
     end
   end
+
+  test "function application with list literal argument" do
+    # Input: "f [1, 2]"
+    input = [
+      Token.new(:identifier, "f", 1, 1),
+      Token.new(:left_bracket, 1, 3),
+      Token.new(:integer, 1, 1, 4),
+      Token.new(:comma, 1, 5),
+      Token.new(:integer, 2, 1, 7),
+      Token.new(:right_bracket, 1, 8),
+      Token.new(:eof, 1, 9)
+    ]
+
+    expected =
+      AST.function_app(
+        AST.identifier("f"),
+        AST.list_literal([AST.integer(1), AST.integer(2)])
+      )
+
+    assert {:ok, ^expected} = Parser.parse(input)
+  end
+
+  test "function application with record literal argument" do
+    # Input: "f {a = 1}"
+    input = [
+      Token.new(:identifier, "f", 1, 1),
+      Token.new(:left_brace, 1, 3),
+      Token.new(:identifier, "a", 1, 4),
+      Token.new(:equals, 1, 6),
+      Token.new(:integer, 1, 1, 8),
+      Token.new(:right_brace, 1, 9),
+      Token.new(:eof, 1, 10)
+    ]
+
+    expected =
+      AST.function_app(
+        AST.identifier("f"),
+        AST.record_literal([
+          AST.record_expression_field(AST.identifier("a"), AST.integer(1))
+        ])
+      )
+
+    assert {:ok, ^expected} = Parser.parse(input)
+  end
 end

@@ -9,6 +9,7 @@ defmodule Scrapex.Value do
           | {:list, [t()]}
           | {:function, Expression.pattern_match_expression(), Scope.t()}
           | {:variant, String.t()}
+          | {:record, [{String.t(), t()}]}
 
   def integer(i) when is_integer(i), do: {:integer, i}
   def float(f) when is_float(f), do: {:float, f}
@@ -16,6 +17,7 @@ defmodule Scrapex.Value do
   def list(l) when is_list(l), do: {:list, l}
   def function(expr, closure), do: {:function, expr, closure}
   def variant(name) when is_binary(name), do: {:variant, name}
+  def record(fields) when is_list(fields), do: {:record, fields}
 
   def display!(value) do
     case display(value) do
@@ -24,6 +26,16 @@ defmodule Scrapex.Value do
 
       {:error, reason} ->
         raise reason
+    end
+  end
+
+  def display({:record, fields}) do
+    case display_record_fields(fields, []) do
+      {:ok, field_strings} ->
+        {:ok, "{#{Enum.join(field_strings, ", ")}}"}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -68,6 +80,17 @@ defmodule Scrapex.Value do
   defp display_list_elements([element | rest], acc) do
     case display(element) do
       {:ok, str} -> display_list_elements(rest, [str | acc])
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp display_record_fields([], acc) do
+    {:ok, Enum.reverse(acc)}
+  end
+
+  defp display_record_fields([{name, value} | rest], acc) do
+    case display(value) do
+      {:ok, value_str} -> display_record_fields(rest, ["#{name}: #{value_str}" | acc])
       {:error, reason} -> {:error, reason}
     end
   end

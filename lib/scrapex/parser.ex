@@ -860,6 +860,8 @@ defmodule Scrapex.Parser do
   defp can_start_prefix_expression?(%Token{type: token_type}) do
     AST.Literal.literal?(token_type) or
       token_type == :identifier or
+      token_type == :left_bracket or
+      token_type == :left_brace or
       token_type == :left_paren or
       token_type in [:minus, :exclamation_mark, :hashtag, :rock, :at]
   end

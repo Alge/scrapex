@@ -10,6 +10,7 @@ defmodule Scrapex.MixProject do
       deps: deps(),
       escript: escript(),
       aliases: aliases(),
+      releases: releases(),
 
       # Balanced Dialyzer settings (not maximum strictness)
       dialyzer: [
@@ -70,7 +71,10 @@ defmodule Scrapex.MixProject do
       {:castore, "~> 1.0", only: [:test], runtime: false},
 
       # Documentation (optional)
-      {:ex_doc, "~> 0.31", only: [:dev, :test], runtime: false}
+      {:ex_doc, "~> 0.31", only: [:dev, :test], runtime: false},
+
+      # Building binaries
+      {:burrito, "~> 1.0.0"}
     ]
   end
 
@@ -103,6 +107,21 @@ defmodule Scrapex.MixProject do
         "coveralls --minimum-coverage 80"
       ],
       "test.one": ["test --max-failures 1 --seed 0"]
+    ]
+  end
+
+  def releases do
+    [
+      example_cli_app: [
+        steps: [:assemble, &Burrito.wrap/1],
+        burrito: [
+          targets: [
+            macos: [os: :darwin, cpu: :x86_64],
+            linux: [os: :linux, cpu: :x86_64],
+            windows: [os: :windows, cpu: :x86_64]
+          ]
+        ]
+      ]
     ]
   end
 end

@@ -1,0 +1,1 @@
+addone 1; addone = a -> a + 1
