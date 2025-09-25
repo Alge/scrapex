@@ -1,0 +1,4 @@
+get-head [1, 2, 3]
+; get-head = 
+  | head >+ tail -> head
+  | [] -> ()

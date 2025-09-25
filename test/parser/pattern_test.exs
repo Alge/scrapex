@@ -207,7 +207,7 @@ defmodule Scrapex.Parser.PatternTest do
         AST.pattern_match_expression([
           AST.pattern_clause(
             AST.record_pattern([
-              AST.record_pattern_field(AST.identifier("a"), AST.integer(1))
+              AST.record_pattern_field("a", AST.integer(1))
             ]),
             AST.text("one")
           )
@@ -417,15 +417,15 @@ defmodule Scrapex.Parser.PatternTest do
         AST.pattern_match_expression([
           AST.pattern_clause(
             AST.record_pattern([
-              AST.record_pattern_field(AST.identifier("a"), AST.integer(1)),
-              AST.record_pattern_field(AST.identifier("b"), AST.identifier("x"))
+              AST.record_pattern_field("a", AST.integer(1)),
+              AST.record_pattern_field("b", AST.identifier("x"))
             ]),
             AST.identifier("x")
           ),
           AST.pattern_clause(
             AST.record_pattern([
-              AST.record_rest(AST.identifier("r")),
-              AST.record_pattern_field(AST.identifier("a"), AST.integer(1))
+              AST.record_rest("r"),
+              AST.record_pattern_field("a", AST.integer(1))
             ]),
             AST.identifier("r")
           )
@@ -511,11 +511,11 @@ defmodule Scrapex.Parser.PatternTest do
           AST.pattern_clause(
             AST.record_pattern([
               AST.record_pattern_field(
-                AST.identifier("a"),
+                "a",
                 AST.regular_list_pattern([AST.identifier("x")])
               ),
               AST.record_pattern_field(
-                AST.identifier("b"),
+                "b",
                 AST.text_pattern(AST.text("hi "), AST.identifier("name"))
               )
             ]),

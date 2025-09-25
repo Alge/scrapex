@@ -95,9 +95,9 @@ defmodule Scrapex.Parser do
         next_token.type == :dot and next_precedence > precedence_context ->
           case parse_expression(tl(token_list), next_precedence) do
             # The right-hand side of a `.` MUST be an identifier.
-            {:ok, {:identifier, _} = field_identifier, rest} ->
+            {:ok, {:identifier, field_name}, rest} ->
               # Build the specific AST node we want.
-              new_left_ast = AST.field_access(left_ast, field_identifier)
+              new_left_ast = AST.field_access(left_ast, field_name)
               # Loop again to handle chained access like `a.b.c`.
               parse_infix_expression(rest, new_left_ast, precedence_context)
 
@@ -451,7 +451,7 @@ defmodule Scrapex.Parser do
       [%Token{type: :identifier, value: name} | [%Token{type: :equals} | rest]] ->
         case parse_pattern(rest) do
           {:ok, pattern, rest} ->
-            item = AST.record_pattern_field(AST.identifier(name), pattern)
+            item = AST.record_pattern_field(name, pattern)
             {:ok, item, rest}
 
           {:error, reason} ->
@@ -459,7 +459,7 @@ defmodule Scrapex.Parser do
         end
 
       [%Token{type: :double_dot} | [%Token{type: :identifier, value: name} | rest]] ->
-        item = AST.record_rest(AST.identifier(name))
+        item = AST.record_rest(name)
         {:ok, item, rest}
 
       [token | _rest] ->
@@ -635,7 +635,7 @@ defmodule Scrapex.Parser do
       ] ->
         case parse_expression(rest, 0) do
           {:ok, expression, rest} ->
-            field = AST.record_expression_field(AST.identifier(key_name), expression)
+            field = AST.record_expression_field(key_name, expression)
             {:ok, field, rest}
 
           # Something went wrong while parsing the expression

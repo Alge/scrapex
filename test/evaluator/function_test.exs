@@ -271,7 +271,6 @@ defmodule Scrapex.Evaluator.FunctionTest do
       assert result == {:ok, Value.integer(7)}
     end
 
-    @tag :skip
     test "function with 3-element list destructuring" do
       # first_of_three [1, 2, 3] ; first_of_three = [x, _, _] -> x
       function_def =
@@ -297,7 +296,6 @@ defmodule Scrapex.Evaluator.FunctionTest do
       assert result == {:ok, Value.integer(1)}
     end
 
-    @tag :skip
     test "function with head/tail destructuring" do
       # head [1, 2, 3] ; head = h >+ _ -> h
       function_def =
@@ -323,7 +321,6 @@ defmodule Scrapex.Evaluator.FunctionTest do
       assert result == {:ok, Value.integer(1)}
     end
 
-    @tag :skip
     test "function with tail extraction" do
       # tail [1, 2, 3] ; tail = _ >+ t -> t
       function_def =
@@ -350,7 +347,6 @@ defmodule Scrapex.Evaluator.FunctionTest do
       assert result == {:ok, expected_tail}
     end
 
-    @tag :skip
     test "function with concatenation pattern" do
       # skip_two [1, 2, 3, 4] ; skip_two = [_, _] ++ rest -> rest
       function_def =
@@ -377,7 +373,6 @@ defmodule Scrapex.Evaluator.FunctionTest do
       assert result == {:ok, expected_rest}
     end
 
-    @tag :skip
     test "function with nested destructuring" do
       # process_pairs [[1, 2], [3, 4]] ; process_pairs = [[a, b], [c, d]] -> a + b + c + d
       function_def =
@@ -418,7 +413,6 @@ defmodule Scrapex.Evaluator.FunctionTest do
     end
 
     # Error cases
-    @tag :skip
     test "destructuring fails when list length doesn't match pattern" do
       # sum_pair [1] ; sum_pair = [x, y] -> x + y  (should fail - list too short)
       function_def =
@@ -442,7 +436,6 @@ defmodule Scrapex.Evaluator.FunctionTest do
       assert String.contains?(message, "No pattern matched")
     end
 
-    @tag :skip
     test "head/tail destructuring fails on empty list" do
       # head [] ; head = h >+ t -> h  (should fail - empty list has no head)
       function_def =

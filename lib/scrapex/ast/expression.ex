@@ -78,7 +78,10 @@ defmodule Scrapex.AST.Expression do
   def pattern_match_expression(clauses), do: {:pattern_match_expression, clauses}
   def function_app(identifier, argument), do: {:function_app, identifier, argument}
   def type_declaration(name, variants), do: {:type_declaration, name, variants}
-  def field_access(source, field), do: {:field_access, source, field}
+
+  def field_access(source, field_name) when is_binary(field_name),
+    do: {:field_access, source, field_name}
+
   def variant_constructor(type, variant), do: {:variant_constructor, type, variant}
   def where(body, binding), do: {:where, body, binding}
   def function_expression(patter_match_expr, closure), do: {:function, patter_match_expr, closure}

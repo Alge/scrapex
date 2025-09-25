@@ -38,11 +38,34 @@ defmodule Scrapex.Evaluator do
           {:error, reason} -> {:error, reason}
         end
 
+      {:record_literal, fields} ->
+        case eval_record_fields(fields, scope, []) do
+          {:ok, fields} -> {:ok, Value.record(fields)}
+          {:error, reason} -> {:error, reason}
+        end
+
       {:identifier, name} ->
         # Look up variable in scope!
         case Scope.get(scope, name) do
           {:ok, value} -> {:ok, value}
           {:error, :not_found} -> {:error, "Undefined variable: '#{name}'"}
+        end
+
+      {:field_access, record_expression, name} ->
+        case eval(record_expression, scope) do
+          {:ok, {:record, fields}} ->
+            Logger.info("Trying to find #{inspect(name)} in #{inspect(fields)}")
+
+            case List.keyfind(fields, name, 0) do
+              {^name, value} -> {:ok, value}
+              nil -> {:error, "Field '#{name}' not found in record"}
+            end
+
+          {:ok, other_value} ->
+            {:error, "Cannot access field on non-record '#{inspect(other_value)}'"}
+
+          {:error, reason} ->
+            {:error, reason}
         end
 
       {:pattern_match_expression, clauses} ->
@@ -126,7 +149,7 @@ defmodule Scrapex.Evaluator do
     end
   end
 
-  # Evaluate list items, these needs to be done
+  # Evaluate list items
   defp eval_list_items([], _scope, acc) do
     {:ok, Enum.reverse(acc)}
   end
@@ -135,6 +158,39 @@ defmodule Scrapex.Evaluator do
     case eval(element, scope) do
       {:ok, value} -> eval_list_items(rest, scope, [value | acc])
       {:error, reason} -> {:error, reason}
+    end
+  end
+
+  # Evaluate record fields
+  defp eval_record_fields([], _scope, acc) do
+    deduplicated =
+      acc
+      |> Enum.uniq_by(fn {name, _value} -> name end)
+      |> Enum.reverse()
+
+    {:ok, deduplicated}
+  end
+
+  defp eval_record_fields([{:expression_field, name, value_expr} | rest], scope, acc)
+       when is_binary(name) do
+    case eval(value_expr, scope) do
+      {:ok, value} -> eval_record_fields(rest, scope, [{name, value} | acc])
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp eval_record_fields([{:spread_expression, var_name} | rest], scope, acc) do
+    case Scope.get(scope, var_name) do
+      {:ok, {:record, fields}} ->
+        # Add spread fields to accumulator, then continue with remaining fields
+        new_acc = Enum.reverse(fields) ++ acc
+        eval_record_fields(rest, scope, new_acc)
+
+      {:ok, other_value} ->
+        {:error, "Cannot spread non-record value: #{inspect(other_value)}"}
+
+      {:error, :not_found} ->
+        {:error, "Undefined variable: '#{var_name}'"}
     end
   end
 
@@ -217,10 +273,24 @@ defmodule Scrapex.Evaluator do
   end
 
   defp pattern_matches({:regular_list_pattern, patterns}, {:list, values}) do
-    if length(patterns) == length(values) do
-      match_pattern_list(patterns, values, [])
-    else
-      {:error, :no_match}
+    case match_pattern_list(patterns, values, []) do
+      {:ok, bindings, []} -> {:ok, bindings}
+      {:ok, _, _} -> {:error, :no_match}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp pattern_matches({:cons_list_pattern, _head_pattern, _tail_pattern}, {:list, []}) do
+    {:error, :no_match}
+  end
+
+  defp pattern_matches(
+         {:cons_list_pattern, head_pattern, tail_pattern},
+         {:list, [head | tail]}
+       ) do
+    with {:ok, first_bindings} <- pattern_matches(head_pattern, head),
+         {:ok, second_bindings} <- pattern_matches(tail_pattern, Value.list(tail)) do
+      {:ok, Enum.concat(first_bindings, second_bindings)}
     end
   end
 
@@ -228,8 +298,14 @@ defmodule Scrapex.Evaluator do
     {:error, :no_match}
   end
 
-  defp match_pattern_list([], [], bindings) do
-    {:ok, Enum.reverse(bindings)}
+  # no patterns left, but maybe remaining list items
+  defp match_pattern_list([], remaining_items, bindings) do
+    {:ok, Enum.reverse(bindings), remaining_items}
+  end
+
+  # Patterns left, but no list items
+  defp match_pattern_list([_ | _], [], _bindings) do
+    {:error, :no_match}
   end
 
   defp match_pattern_list([pattern | rest_patterns], [value | rest_values], bindings) do

@@ -123,7 +123,7 @@ defmodule Scrapex.Parser.ExpressionTest do
       expected =
         AST.record_literal([
           # Assuming a new AST node
-          AST.record_expression_field(AST.identifier("a"), AST.integer(1))
+          AST.record_expression_field("a", AST.integer(1))
         ])
 
       assert {:ok, ^expected} = Parser.parse(input)
@@ -147,8 +147,8 @@ defmodule Scrapex.Parser.ExpressionTest do
       expected =
         AST.record_literal([
           # Assuming a new AST node
-          AST.record_expression_field(AST.identifier("a"), AST.integer(1)),
-          AST.record_expression_field(AST.identifier("b"), AST.text("x"))
+          AST.record_expression_field("a", AST.integer(1)),
+          AST.record_expression_field("b", AST.text("x"))
         ])
 
       assert {:ok, ^expected} = Parser.parse(input)
@@ -171,7 +171,7 @@ defmodule Scrapex.Parser.ExpressionTest do
       expected =
         AST.record_literal([
           AST.spread_expression(AST.identifier("g")),
-          AST.record_expression_field(AST.identifier("a"), AST.integer(2))
+          AST.record_expression_field("a", AST.integer(2))
         ])
 
       assert {:ok, ^expected} = Parser.parse(input)
@@ -193,7 +193,7 @@ defmodule Scrapex.Parser.ExpressionTest do
 
       expected =
         AST.record_literal([
-          AST.record_expression_field(AST.identifier("a"), AST.integer(2)),
+          AST.record_expression_field("a", AST.integer(2)),
           AST.spread_expression(AST.identifier("g"))
         ])
 

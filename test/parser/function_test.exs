@@ -120,7 +120,7 @@ defmodule Scrapex.ParserTest.Functions do
       expected =
         AST.function_app(
           AST.identifier("f"),
-          AST.field_access(AST.identifier("x"), AST.identifier("y"))
+          AST.field_access(AST.identifier("x"), "y")
         )
 
       assert {:ok, ^expected} = Parser.parse(input)
@@ -661,7 +661,7 @@ defmodule Scrapex.ParserTest.Functions do
       AST.function_app(
         AST.identifier("f"),
         AST.record_literal([
-          AST.record_expression_field(AST.identifier("a"), AST.integer(1))
+          AST.record_expression_field("a", AST.integer(1))
         ])
       )
 
