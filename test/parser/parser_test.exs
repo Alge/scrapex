@@ -128,4 +128,62 @@ defmodule Scrapex.ParserTest do
 
     assert {:ok, ^expected} = Parser.parse(input)
   end
+
+  describe "comparison operators" do
+    test "parses equality with correct precedence" do
+      # Input: "1 + 2 == 3 * 4" should parse as (1 + 2) == (3 * 4)
+      input = [
+        Token.new(:integer, 1, 1, 1),
+        Token.new(:plus, 1, 3),
+        Token.new(:integer, 2, 1, 5),
+        Token.new(:double_equals, 1, 7),
+        Token.new(:integer, 3, 1, 10),
+        Token.new(:multiply, 1, 12),
+        Token.new(:integer, 4, 1, 14),
+        Token.new(:eof, 1, 15)
+      ]
+
+      expected =
+        AST.binary_op(
+          AST.binary_op(AST.integer(1), :plus, AST.integer(2)),
+          :double_equals,
+          AST.binary_op(AST.integer(3), :multiply, AST.integer(4))
+        )
+
+      assert {:ok, ^expected} = Parser.parse(input)
+    end
+
+    test "parses all comparison operators" do
+      # Input: "a < b > c == d != e"
+      input = [
+        Token.new(:identifier, "a", 1, 1),
+        Token.new(:less_than, 1, 3),
+        Token.new(:identifier, "b", 1, 5),
+        Token.new(:greater_than, 1, 7),
+        Token.new(:identifier, "c", 1, 9),
+        Token.new(:double_equals, 1, 11),
+        Token.new(:identifier, "d", 1, 14),
+        Token.new(:not_equals, 1, 16),
+        Token.new(:identifier, "e", 1, 19),
+        Token.new(:eof, 1, 20)
+      ]
+
+      expected =
+        AST.binary_op(
+          AST.binary_op(
+            AST.binary_op(
+              AST.binary_op(AST.identifier("a"), :less_than, AST.identifier("b")),
+              :greater_than,
+              AST.identifier("c")
+            ),
+            :double_equals,
+            AST.identifier("d")
+          ),
+          :not_equals,
+          AST.identifier("e")
+        )
+
+      assert {:ok, ^expected} = Parser.parse(input)
+    end
+  end
 end

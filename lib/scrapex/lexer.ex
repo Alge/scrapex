@@ -30,6 +30,8 @@ defmodule Scrapex.Lexer do
       {:pipe_forward, ~r/^>>/},
       {:pipe_operator, ~r/^\|\>/},
       {:rock, ~r/^\$\$/},
+      {:double_equals, ~r/^==/},
+      {:not_equals, ~r/^!=/},
 
       # # Literals (longer/more specific first)
       {:interpolated_text, ~r/^"(?:[^`]*`[^`]*`)+[^`]*"/},

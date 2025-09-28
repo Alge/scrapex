@@ -824,6 +824,10 @@ defmodule Scrapex.Parser do
       :colon -> 3
       # |>
       :pipe_operator -> 4
+      :double_equals -> 5
+      :not_equals -> 5
+      :less_than -> 5
+      :greater_than -> 5
       # >>
       :pipe_forward -> 6
       # ->

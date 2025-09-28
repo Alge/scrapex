@@ -195,6 +195,8 @@ defmodule LexerTest do
     {"..", :double_dot},
     {"$$", :rock},
     {"|>", :pipe_operator},
+    {"==", :double_equals},
+    {"!=", :not_equals},
     {">>", :pipe_forward}
   ]
   for {input, expected_type} <- @tokenize_multi_char_operator_cases do

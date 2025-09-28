@@ -370,6 +370,148 @@ defmodule Scrapex.EvaluatorTest do
 
       assert {:error, "Undefined variable: 'undefined_var'"} = result
     end
+
+    test "evaluates equality comparison" do
+      # 5 == 5
+      ast_node = AST.binary_op(AST.integer(5), :double_equals, AST.integer(5))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.variant("true")}
+    end
+
+    test "evaluates inequality comparison" do
+      # 3 != 7
+      ast_node = AST.binary_op(AST.integer(3), :not_equals, AST.integer(7))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.variant("true")}
+    end
+
+    test "evaluates less than comparison" do
+      # 2 < 5
+      ast_node = AST.binary_op(AST.integer(2), :less_than, AST.integer(5))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.variant("true")}
+    end
+
+    test "evaluates greater than comparison" do
+      # 8 > 3
+      ast_node = AST.binary_op(AST.integer(8), :greater_than, AST.integer(3))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.variant("true")}
+    end
+
+    test "evaluates false equality comparison" do
+      # 5 == 7
+      ast_node = AST.binary_op(AST.integer(5), :double_equals, AST.integer(7))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.variant("false")}
+    end
+
+    test "evaluates false inequality comparison" do
+      # 5 != 5
+      ast_node = AST.binary_op(AST.integer(5), :not_equals, AST.integer(5))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.variant("false")}
+    end
+
+    test "evaluates comparison with variables" do
+      # x < y where x = 3, y = 7
+      ast_node = AST.binary_op(AST.identifier("x"), :less_than, AST.identifier("y"))
+
+      scope =
+        Scope.empty()
+        |> Scope.bind("x", Value.integer(3))
+        |> Scope.bind("y", Value.integer(7))
+
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.variant("true")}
+    end
+
+    test "evaluates comparison with text values" do
+      # "apple" < "banana"
+      ast_node = AST.binary_op(AST.text("apple"), :less_than, AST.text("banana"))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.variant("true")}
+    end
+
+    test "evaluates comparison with float values" do
+      # 3.14 > 2.71
+      ast_node = AST.binary_op(AST.float(3.14), :greater_than, AST.float(2.71))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.variant("true")}
+    end
+
+    test "evaluates comparison with variants" do
+      # #ok == #ok
+      ast_node = AST.binary_op(AST.variant("ok"), :double_equals, AST.variant("ok"))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.variant("true")}
+    end
+
+    test "evaluates chained comparisons" do
+      # (1 < 2) == #true
+      left_comparison = AST.binary_op(AST.integer(1), :less_than, AST.integer(2))
+      ast_node = AST.binary_op(left_comparison, :double_equals, AST.variant("true"))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.variant("true")}
+    end
+
+    test "returns error for comparison type mismatch" do
+      # 5 == "5" should fail
+      ast_node = AST.binary_op(AST.integer(5), :double_equals, AST.text("5"))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert {:error, _reason} = result
+    end
+
+    test "returns error for less than with variants" do
+      # #ok < #error should fail
+      ast_node = AST.binary_op(AST.variant("ok"), :less_than, AST.variant("error"))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert {:error, _reason} = result
+    end
+
+    test "returns error when comparison operand is undefined" do
+      # x == 5 where x is undefined
+      ast_node = AST.binary_op(AST.identifier("undefined_var"), :double_equals, AST.integer(5))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert {:error, "Undefined variable: 'undefined_var'"} = result
+    end
+
+    test "evaluates comparison in arithmetic context" do
+      # 1 + 2 == 3
+      left_expr = AST.binary_op(AST.integer(1), :plus, AST.integer(2))
+      ast_node = AST.binary_op(left_expr, :double_equals, AST.integer(3))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.variant("true")}
+    end
   end
 
   describe "where clauses" do

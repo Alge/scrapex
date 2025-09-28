@@ -149,6 +149,34 @@ defmodule Scrapex.Evaluator do
           {:ok, result}
         end
 
+      {:binary_op, left_node, :double_equals, right_node} ->
+        with {:ok, left_value} <- eval(left_node, scope),
+             {:ok, right_value} <- eval(right_node, scope),
+             {:ok, result} <- Value.equal(left_value, right_value) do
+          {:ok, result}
+        end
+
+      {:binary_op, left_node, :not_equals, right_node} ->
+        with {:ok, left_value} <- eval(left_node, scope),
+             {:ok, right_value} <- eval(right_node, scope),
+             {:ok, result} <- Value.not_equal(left_value, right_value) do
+          {:ok, result}
+        end
+
+      {:binary_op, left_node, :less_than, right_node} ->
+        with {:ok, left_value} <- eval(left_node, scope),
+             {:ok, right_value} <- eval(right_node, scope),
+             {:ok, result} <- Value.less_than(left_value, right_value) do
+          {:ok, result}
+        end
+
+      {:binary_op, left_node, :greater_than, right_node} ->
+        with {:ok, left_value} <- eval(left_node, scope),
+             {:ok, right_value} <- eval(right_node, scope),
+             {:ok, result} <- Value.greater_than(left_value, right_value) do
+          {:ok, result}
+        end
+
       {:where, body, binding_ast} ->
         Logger.debug("Found a where clause!")
         Logger.debug("Body: #{inspect(body)}")

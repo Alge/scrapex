@@ -195,4 +195,62 @@ defmodule Scrapex.Value do
   def append_to_list(_not_list, _item) do
     {:error, "Cannot append to non-list"}
   end
+
+  #######################################
+  ############# Comparisons #############
+  #######################################
+
+  ##############  Equals   ##############
+  def equal({type, a}, {type, a}) when type in [:text, :integer, :float] do
+    {:ok, variant("true")}
+  end
+
+  def equal({type, _a}, {type, _b}) when type in [:text, :integer, :float] do
+    {:ok, variant("false")}
+  end
+
+  def equal({:variant, a, b}, {:variant, a, b}) do
+    {:ok, variant("true")}
+  end
+
+  def equal({:variant, _, _}, {:variant, _, _}) do
+    {:ok, variant("false")}
+  end
+
+  def equal(a, b) do
+    {:error, "Cannot compare #{inspect(a)} and #{inspect(b)}"}
+  end
+
+  #############  Not equals  ############
+  def not_equal(a, b) do
+    case equal(a, b) do
+      {:ok, {:variant, "true", _}} -> {:ok, variant("false")}
+      {:ok, _} -> {:ok, variant("true")}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  ##########  Greater Than   ############
+  def greater_than({type, a}, {type, b}) when type in [:integer, :float, :text] do
+    case a > b do
+      true -> {:ok, variant("true")}
+      false -> {:ok, variant("false")}
+    end
+  end
+
+  def greater_than(a, b) do
+    {:error, "Cannot compare #{inspect(a)} and #{inspect(b)}"}
+  end
+
+  ###########  Less Than   ##############
+  def less_than({type, a}, {type, b}) when type in [:integer, :float, :text] do
+    case a < b do
+      true -> {:ok, variant("true")}
+      false -> {:ok, variant("false")}
+    end
+  end
+
+  def less_than(a, b) do
+    {:error, "Cannot compare #{inspect(a)} and #{inspect(b)}"}
+  end
 end
