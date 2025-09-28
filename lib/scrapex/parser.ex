@@ -2,7 +2,7 @@
 require Logger
 
 defmodule Scrapex.Parser do
-  alias Scrapex.{AST, Token}
+  alias Scrapex.{AST, Token, Lexer}
 
   @doc """
   The main entry point for the parser.
@@ -756,7 +756,11 @@ defmodule Scrapex.Parser do
   end
 
   defp parse_prefix(:interpolated_text, [%Token{value: value} | rest]) do
-    {:ok, AST.interpolated_text(value), rest}
+    # Parse interpolated text. We need to split the text up in chunks, and
+    case parse_interpolated_segments(value) do
+      {:ok, segments} -> {:ok, AST.interpolated_text(segments), rest}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   defp parse_prefix(:left_paren, [_token | rest]) do
@@ -808,6 +812,65 @@ defmodule Scrapex.Parser do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  # =============================================================================
+  # Helpers for parsing interpolated text
+  # =============================================================================
+  defp parse_interpolated_segments(raw_string) do
+    parse_with_state(String.graphemes(raw_string), [], :text, "", false)
+  end
+
+  defp parse_with_state([], acc, :text, current, _in_quotes) do
+    {:ok, Enum.reverse([current | acc])}
+  end
+
+  defp parse_with_state([], _acc, :expression, _current, _in_quotes) do
+    {:error, "Unclosed interpolation expression"}
+  end
+
+  defp parse_with_state(["`" | rest], acc, :text, current, false) do
+    # Start of expression (only when not inside quotes)
+    parse_with_state(rest, [current | acc], :expression, "", false)
+  end
+
+  defp parse_with_state(["`" | rest], acc, :expression, current, false) do
+    # End of expression (only when not inside quotes)
+    case tokenize_and_parse_expression(String.trim(current)) do
+      {:ok, expr_ast} -> parse_with_state(rest, [expr_ast | acc], :text, "", false)
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp parse_with_state(["\"" | rest], acc, state, current, in_quotes) do
+    # Toggle quote state and include the quote in current text
+    parse_with_state(rest, acc, state, current <> "\"", not in_quotes)
+  end
+
+  defp parse_with_state([char | rest], acc, state, current, in_quotes) do
+    # Regular character - add to current segment
+    parse_with_state(rest, acc, state, current <> char, in_quotes)
+  end
+
+  defp tokenize_and_parse_expression(expr_text) do
+    case String.trim(expr_text) do
+      "" ->
+        # Empty expression becomes hole
+        {:ok, AST.hole()}
+
+      trimmed ->
+        # Send back to lexer to tokenize the expression
+        with tokens <- Lexer.tokenize(trimmed),
+             # Remove EOF token and add it back for parsing
+             expr_tokens = Enum.reject(tokens, &(&1.type == :eof)),
+             {:ok, ast} <-
+               parse(expr_tokens ++ [Token.new(:eof, 1, String.length(trimmed) + 1)]) do
+          {:ok, ast}
+        else
+          {:error, reason} -> {:error, reason}
+          _ -> {:error, "Failed to parse expression: #{trimmed}"}
+        end
     end
   end
 

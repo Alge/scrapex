@@ -13,8 +13,7 @@ defmodule Scrapex.ParserTest.Literals do
     {:text, "hello", AST.text("hello")},
     {:text, "", AST.text("")},
     # Interpolated Text
-    {:interpolated_text, "hello `\"sweet\"` world",
-     AST.interpolated_text("hello `\"sweet\"` world")},
+    {:interpolated_text, ["hello ", {:text, "sweet"}, " world"]},
     # Base64
     {:base64, "SGVsbG8=", AST.base64("SGVsbG8=")},
     # Hexbyte

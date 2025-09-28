@@ -1,5 +1,6 @@
 defmodule Scrapex.AST.Literal do
   @moduledoc "Literal value nodes in the AST"
+  alias Scrapex.AST.Expression
 
   # =============================================================================
   # TYPES
@@ -8,7 +9,8 @@ defmodule Scrapex.AST.Literal do
   @type integer_literal :: {:integer, value :: integer()}
   @type float_literal :: {:float, value :: float()}
   @type text_literal :: {:text, value :: String.t()}
-  @type interpolated_text_literal :: {:interpolated_text, value :: String.t()}
+  @type interpolated_text_literal ::
+          {:interpolated_text, segments :: [String.t() | Expression.t()]}
   @type hex_byte_literal :: {:hex_byte, value :: String.t()}
   @type base64_literal :: {:base64, value :: String.t()}
   @type hole_literal :: {:hole}
@@ -36,7 +38,7 @@ defmodule Scrapex.AST.Literal do
   def text(value), do: {:text, value}
 
   @doc "Create an interpolated text literal"
-  def interpolated_text(value), do: {:interpolated_text, value}
+  def interpolated_text(segments), do: {:interpolated_text, segments}
 
   @doc "Create a hex byte literal"
   def hexbyte(value), do: {:hexbyte, value}
