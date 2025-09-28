@@ -11,6 +11,8 @@ defmodule Scrapex.Value do
           | {:variant, String.t(), t() | nil}
           | {:record, [{String.t(), t()}]}
           | {:hole}
+          | {:hexbyte, integer()}
+          | {:base64, String.t()}
 
   def integer(i) when is_integer(i), do: {:integer, i}
   def float(f) when is_float(f), do: {:float, f}
@@ -22,6 +24,38 @@ defmodule Scrapex.Value do
   def variant(name, payload) when is_binary(name), do: {:variant, name, payload}
   def record(fields) when is_list(fields), do: {:record, fields}
   def hole(), do: {:hole}
+
+  def base64(base64_string) when is_binary(base64_string) do
+    # Validate it's valid base64
+    case Base.decode64(base64_string) do
+      {:ok, _} -> {:base64, base64_string}
+      :error -> raise ArgumentError, "Invalid base64 string: #{base64_string}"
+    end
+  end
+
+  def hexbyte(i) when is_integer(i) and i >= 0 and i <= 255, do: {:hexbyte, i}
+
+  def hexbyte(value) when is_integer(value) do
+    raise ArgumentError, "Hexbyte value must be in range 0-255, got: #{value}"
+  end
+
+  def hexbyte(hex_string) when is_binary(hex_string) do
+    case String.length(hex_string) do
+      1 ->
+        # Handle single digit like "F" -> "0F"
+        hexbyte("0" <> hex_string)
+
+      2 ->
+        case Integer.parse(hex_string, 16) do
+          # Recursively call with integer
+          {value, ""} -> hexbyte(value)
+          _ -> raise ArgumentError, "Invalid hex string: #{hex_string}"
+        end
+
+      _ ->
+        raise ArgumentError, "Hex string must be 1-2 characters, got: #{hex_string}"
+    end
+  end
 
   @doc """
   Returns a string representation of a value.
@@ -203,11 +237,11 @@ defmodule Scrapex.Value do
   #######################################
 
   ##############  Equals   ##############
-  def equal({type, a}, {type, a}) when type in [:text, :integer, :float] do
+  def equal({type, a}, {type, a}) when type in [:text, :integer, :float, :hexbyte, :base64] do
     {:ok, variant("true")}
   end
 
-  def equal({type, _a}, {type, _b}) when type in [:text, :integer, :float] do
+  def equal({type, _a}, {type, _b}) when type in [:text, :integer, :float, :hexbyte, :base64] do
     {:ok, variant("false")}
   end
 
@@ -237,7 +271,7 @@ defmodule Scrapex.Value do
   end
 
   ##########  Greater Than   ############
-  def greater_than({type, a}, {type, b}) when type in [:integer, :float, :text] do
+  def greater_than({type, a}, {type, b}) when type in [:integer, :float, :text, :hexbyte] do
     case a > b do
       true -> {:ok, variant("true")}
       false -> {:ok, variant("false")}
@@ -249,7 +283,7 @@ defmodule Scrapex.Value do
   end
 
   ###########  Less Than   ##############
-  def less_than({type, a}, {type, b}) when type in [:integer, :float, :text] do
+  def less_than({type, a}, {type, b}) when type in [:integer, :float, :text, :hexbyte] do
     case a < b do
       true -> {:ok, variant("true")}
       false -> {:ok, variant("false")}

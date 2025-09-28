@@ -152,6 +152,228 @@ defmodule Scrapex.EvaluatorTest do
 
       assert result == {:ok, expected}
     end
+
+    test "evaluates hexbyte literal" do
+      ast_node = AST.hexbyte(255)
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.hexbyte(255)}
+    end
+
+    test "evaluates hexbyte from hex string" do
+      ast_node = AST.hexbyte("FF")
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.hexbyte(255)}
+    end
+
+    test "evaluates hexbyte in where clause" do
+      # result ; result = ~A0
+      ast_node =
+        AST.where(
+          AST.identifier("result"),
+          AST.binding("result", AST.hexbyte(160))
+        )
+
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.hexbyte(160)}
+    end
+
+    test "evaluates hexbyte in list" do
+      # [~00, ~FF, ~80]
+      ast_node =
+        AST.list_literal([
+          AST.hexbyte(0),
+          AST.hexbyte(255),
+          AST.hexbyte(128)
+        ])
+
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      expected =
+        Value.list([
+          Value.hexbyte(0),
+          Value.hexbyte(255),
+          Value.hexbyte(128)
+        ])
+
+      assert result == {:ok, expected}
+    end
+
+    test "evaluates hexbyte in record" do
+      # {data: ~FF, checksum: ~A0}
+      ast_node =
+        AST.record_literal([
+          {:expression_field, "data", AST.hexbyte(255)},
+          {:expression_field, "checksum", AST.hexbyte(160)}
+        ])
+
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      expected =
+        Value.record([
+          {"data", Value.hexbyte(255)},
+          {"checksum", Value.hexbyte(160)}
+        ])
+
+      assert result == {:ok, expected}
+    end
+
+    test "evaluates hexbyte comparison operations" do
+      # ~80 < ~FF
+      ast_node = AST.binary_op(AST.hexbyte(128), :less_than, AST.hexbyte(255))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.variant("true")}
+    end
+
+    test "evaluates hexbyte equality" do
+      # ~FF == ~FF
+      ast_node = AST.binary_op(AST.hexbyte(255), :double_equals, AST.hexbyte(255))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.variant("true")}
+    end
+
+    test "evaluates hexbyte with variables" do
+      # byte_val ; byte_val = ~FF
+      ast_node =
+        AST.where(
+          AST.identifier("byte_val"),
+          AST.binding("byte_val", AST.hexbyte("FF"))
+        )
+
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.hexbyte(255)}
+    end
+
+    test "evaluates base64 literal" do
+      ast_node = AST.base64("SGVsbG8=")
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.base64("SGVsbG8=")}
+    end
+
+    test "evaluates base64 in where clause" do
+      # result ; result = ~~AQIDBA==
+      ast_node =
+        AST.where(
+          AST.identifier("result"),
+          AST.binding("result", AST.base64("AQIDBA=="))
+        )
+
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.base64("AQIDBA==")}
+    end
+
+    test "evaluates base64 in list" do
+      # [~~SGVsbG8=, ~~QQ==, ~~YWJjZA==]
+      ast_node =
+        AST.list_literal([
+          AST.base64("SGVsbG8="),
+          AST.base64("QQ=="),
+          AST.base64("YWJjZA==")
+        ])
+
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      expected =
+        Value.list([
+          Value.base64("SGVsbG8="),
+          Value.base64("QQ=="),
+          Value.base64("YWJjZA==")
+        ])
+
+      assert result == {:ok, expected}
+    end
+
+    test "evaluates base64 in record" do
+      # {data: ~~SGVsbG8=, checksum: ~~AQIDBA==}
+      ast_node =
+        AST.record_literal([
+          {:expression_field, "data", AST.base64("SGVsbG8=")},
+          {:expression_field, "checksum", AST.base64("AQIDBA==")}
+        ])
+
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      expected =
+        Value.record([
+          {"data", Value.base64("SGVsbG8=")},
+          {"checksum", Value.base64("AQIDBA==")}
+        ])
+
+      assert result == {:ok, expected}
+    end
+
+    test "evaluates base64 equality" do
+      # ~~SGVsbG8= == ~~SGVsbG8=
+      ast_node = AST.binary_op(AST.base64("SGVsbG8="), :double_equals, AST.base64("SGVsbG8="))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.variant("true")}
+    end
+
+    test "evaluates base64 inequality" do
+      # ~~SGVsbG8= != ~~AQIDBA==
+      ast_node = AST.binary_op(AST.base64("SGVsbG8="), :not_equals, AST.base64("AQIDBA=="))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.variant("true")}
+    end
+
+    test "evaluates base64 with variables" do
+      # encoded_data ; encoded_data = ~~SGVsbG8=
+      ast_node =
+        AST.where(
+          AST.identifier("encoded_data"),
+          AST.binding("encoded_data", AST.base64("SGVsbG8="))
+        )
+
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.base64("SGVsbG8=")}
+    end
+
+    test "evaluates mixed base64 and other types" do
+      # [~~SGVsbG8=, "hello", 42]
+      ast_node =
+        AST.list_literal([
+          AST.base64("SGVsbG8="),
+          AST.text("hello"),
+          AST.integer(42)
+        ])
+
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      expected =
+        Value.list([
+          Value.base64("SGVsbG8="),
+          Value.text("hello"),
+          Value.integer(42)
+        ])
+
+      assert result == {:ok, expected}
+    end
   end
 
   describe "binary operations" do

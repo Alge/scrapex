@@ -23,9 +23,23 @@ defimpl Scrapex.Display, for: Tuple do
   def to_string({:variant, name, nil}), do: "##{name}"
   def to_string({:hole}), do: "()"
 
+  def to_string({:hexbyte, value}) do
+    hex_string =
+      value
+      |> Integer.to_string(16)
+      |> String.upcase()
+      |> String.pad_leading(2, "0")
+
+    "~" <> hex_string
+  end
+
   def to_string({:variant, name, payload}) do
     # Recursively call the protocol to display the payload.
     "##{name} #{Scrapex.Display.to_string(payload)}"
+  end
+
+  def to_string({:base64, base64_string}) do
+    "~~" <> base64_string
   end
 
   def to_string(unhandled_value) do

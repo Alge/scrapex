@@ -35,6 +35,12 @@ defmodule Scrapex.Evaluator do
       {:hole} ->
         {:ok, Value.hole()}
 
+      {:hexbyte, value} ->
+        {:ok, Value.hexbyte(value)}
+
+      {:base64, value} ->
+        {:ok, Value.base64(value)}
+
       {:list_literal, elements} ->
         case eval_list_items(elements, scope, []) do
           {:ok, values} -> {:ok, Value.list(values)}
