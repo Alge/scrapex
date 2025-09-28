@@ -41,6 +41,12 @@ defmodule Scrapex.Evaluator do
       {:base64, value} ->
         {:ok, Value.base64(value)}
 
+      {:interpolated_text, segments} ->
+        case eval_interpolated_segments(segments, scope) do
+          {:ok, segments} -> {:ok, Value.text(Enum.join(segments))}
+          {:error, reason} -> {:error, reason}
+        end
+
       {:list_literal, elements} ->
         case eval_list_items(elements, scope, []) do
           {:ok, values} -> {:ok, Value.list(values)}
@@ -587,6 +593,34 @@ defmodule Scrapex.Evaluator do
 
       {:error, :no_match} ->
         {:error, :no_match}
+    end
+  end
+
+  ### Helper for evaluating interpolated text. Takes in a list of segments,
+  ### and returns a list of strings
+
+  defp eval_interpolated_segments(segments, scope) do
+    eval_interpolated_segments(segments, scope, [])
+  end
+
+  defp eval_interpolated_segments([], _scope, acc) do
+    {:ok, Enum.reverse(acc)}
+  end
+
+  defp eval_interpolated_segments([text | remaining_segments], scope, acc) when is_binary(text) do
+    eval_interpolated_segments(remaining_segments, scope, [text | acc])
+  end
+
+  defp eval_interpolated_segments([expr | remaining_segments], scope, acc) do
+    case eval(expr, scope) do
+      {:ok, {:text, value}} ->
+        eval_interpolated_segments(remaining_segments, scope, [value | acc])
+
+      {:ok, value} ->
+        {:error, "Cannot use #{inspect(value)} in interpolated text"}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 end

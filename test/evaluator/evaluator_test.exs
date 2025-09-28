@@ -376,6 +376,259 @@ defmodule Scrapex.EvaluatorTest do
     end
   end
 
+  describe "interpolated text evaluation" do
+    test "evaluates simple interpolated text with variable" do
+      # "hello ` name ` world" where name = "Alice"
+      ast_node =
+        AST.interpolated_text([
+          "hello ",
+          AST.identifier("name"),
+          " world"
+        ])
+
+      scope = Scope.empty() |> Scope.bind("name", Value.text("Alice"))
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.text("hello Alice world")}
+    end
+
+    test "evaluates interpolated text with text concatenation" do
+      # "greeting: ` prefix ++ suffix `" where prefix = "Good", suffix = " morning"
+      ast_node =
+        AST.interpolated_text([
+          "greeting: ",
+          AST.binary_op(AST.identifier("prefix"), :double_plus, AST.identifier("suffix")),
+          ""
+        ])
+
+      scope =
+        Scope.empty()
+        |> Scope.bind("prefix", Value.text("Good"))
+        |> Scope.bind("suffix", Value.text(" morning"))
+
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.text("greeting: Good morning")}
+    end
+
+    test "evaluates interpolated text with multiple text expressions" do
+      # "user: ` first_name `, last: ` last_name `"
+      ast_node =
+        AST.interpolated_text([
+          "user: ",
+          AST.identifier("first_name"),
+          ", last: ",
+          AST.identifier("last_name"),
+          ""
+        ])
+
+      scope =
+        Scope.empty()
+        |> Scope.bind("first_name", Value.text("John"))
+        |> Scope.bind("last_name", Value.text("Doe"))
+
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.text("user: John, last: Doe")}
+    end
+
+    test "evaluates nested interpolated text" do
+      # "outer ` "inner ` x ` text" ` end" where x = "42"
+      inner_interpolation =
+        AST.interpolated_text([
+          "inner ",
+          AST.identifier("x"),
+          " text"
+        ])
+
+      ast_node =
+        AST.interpolated_text([
+          "outer ",
+          inner_interpolation,
+          " end"
+        ])
+
+      scope = Scope.empty() |> Scope.bind("x", Value.text("42"))
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.text("outer inner 42 text end")}
+    end
+
+    test "evaluates interpolated text with complex nested expressions" do
+      # "result: ` "score: ` points ++ " total" ` done"
+      inner_interpolation =
+        AST.interpolated_text([
+          "score: ",
+          AST.binary_op(AST.identifier("points"), :double_plus, AST.text(" total")),
+          ""
+        ])
+
+      ast_node =
+        AST.interpolated_text([
+          "result: ",
+          inner_interpolation,
+          " done"
+        ])
+
+      scope = Scope.empty() |> Scope.bind("points", Value.text("95"))
+
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.text("result: score: 95 total done")}
+    end
+
+    test "evaluates interpolated text with record field access returning text" do
+      # "user: ` person.name `"
+      ast_node =
+        AST.interpolated_text([
+          "user: ",
+          AST.field_access(AST.identifier("person"), "name"),
+          ""
+        ])
+
+      person_record = Value.record([{"name", Value.text("Charlie")}])
+      scope = Scope.empty() |> Scope.bind("person", person_record)
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.text("user: Charlie")}
+    end
+
+    test "evaluates interpolated text with text literals" do
+      # "message: ` "Hello there" `"
+      ast_node =
+        AST.interpolated_text([
+          "message: ",
+          AST.text("Hello there"),
+          ""
+        ])
+
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.text("message: Hello there")}
+    end
+
+    test "evaluates empty interpolated text" do
+      # Just text segments, no expressions
+      ast_node = AST.interpolated_text(["hello world"])
+
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.text("hello world")}
+    end
+
+    test "evaluates interpolated text with only text expressions" do
+      # "` greeting `` target `" (no literal text between)
+      ast_node =
+        AST.interpolated_text([
+          "",
+          AST.identifier("greeting"),
+          "",
+          AST.identifier("target"),
+          ""
+        ])
+
+      scope =
+        Scope.empty()
+        |> Scope.bind("greeting", Value.text("hello"))
+        |> Scope.bind("target", Value.text("world"))
+
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.text("helloworld")}
+    end
+
+    test "evaluates interpolated text with empty text variables" do
+      # "before ` empty_text ` after"
+      ast_node =
+        AST.interpolated_text([
+          "before ",
+          AST.identifier("empty_text"),
+          " after"
+        ])
+
+      scope = Scope.empty() |> Scope.bind("empty_text", Value.text(""))
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.text("before  after")}
+    end
+
+    test "returns error when expression evaluation fails" do
+      # "value: ` undefined_var `"
+      ast_node =
+        AST.interpolated_text([
+          "value: ",
+          AST.identifier("undefined_var"),
+          ""
+        ])
+
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert {:error, "Undefined variable: 'undefined_var'"} = result
+    end
+
+    test "returns error when nested expression fails" do
+      # "outer ` "inner ` bad_var ` text" ` end"
+      inner_interpolation =
+        AST.interpolated_text([
+          "inner ",
+          AST.identifier("bad_var"),
+          " text"
+        ])
+
+      ast_node =
+        AST.interpolated_text([
+          "outer ",
+          inner_interpolation,
+          " end"
+        ])
+
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert {:error, "Undefined variable: 'bad_var'"} = result
+    end
+
+    test "returns error when interpolated expression is not text" do
+      # "value: ` number `" where number is an integer (should fail)
+      ast_node =
+        AST.interpolated_text([
+          "value: ",
+          AST.identifier("number"),
+          ""
+        ])
+
+      scope = Scope.empty() |> Scope.bind("number", Value.integer(42))
+      result = Evaluator.eval(ast_node, scope)
+
+      # This should fail because integers cannot be interpolated
+      assert {:error, _reason} = result
+    end
+
+    test "evaluates interpolated text in where clause" do
+      # result ; result = "hello ` name `"
+      interpolated =
+        AST.interpolated_text([
+          "hello ",
+          AST.identifier("name"),
+          ""
+        ])
+
+      ast_node =
+        AST.where(
+          AST.identifier("result"),
+          AST.binding("result", interpolated)
+        )
+
+      scope = Scope.empty() |> Scope.bind("name", Value.text("world"))
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.text("hello world")}
+    end
+  end
+
   describe "binary operations" do
     test "evaluates integer addition" do
       # 1 + 2
