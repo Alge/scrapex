@@ -1,1 +1,5 @@
-sum_pair [3, 4] ; sum_pair = | [x, y] -> x + y
+ -- Sum a pair of numbers from a list
+sum_pair [3, 4] ;
+ sum_pair = 
+    | [x, y] -> x + y
+{asd = 3, b = "hello", c = "hello` x 2 `frog", d =  #hashtag "hello"}

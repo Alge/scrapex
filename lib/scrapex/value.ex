@@ -147,19 +147,19 @@ defmodule Scrapex.Value do
     {:error, "Operator '/' not supported between value '#{inspect(a)}' and '#{inspect(b)}'"}
   end
 
-  ##############  Append  ##############
-  def append!(a, b) do
-    case append(a, b) do
+  ##############  Append strings  ##############
+  def append_text!(a, b) do
+    case append_text(a, b) do
       {:ok, value} -> value
       {:error, reason} -> raise reason
     end
   end
 
-  def append({:text, a}, {:text, b}) do
+  def append_text({:text, a}, {:text, b}) do
     {:ok, text("#{a}#{b}")}
   end
 
-  def append(a, b) do
+  def append_text(a, b) do
     {:error, "Operator '++' not supported between value '#{inspect(a)}' and '#{inspect(b)}'"}
   end
 
@@ -178,5 +178,21 @@ defmodule Scrapex.Value do
 
   def cons(_value, _not_list) do
     {:error, "Cannot perform cons operation on non-list"}
+  end
+
+  ########### Append to list ###########
+  def append_to_list!(a, b) do
+    case append_to_list(a, b) do
+      {:ok, value} -> value
+      {:error, reason} -> raise reason
+    end
+  end
+
+  def append_to_list({:list, items}, item_value) do
+    {:ok, list(items ++ [item_value])}
+  end
+
+  def append_to_list(_not_list, _item) do
+    {:error, "Cannot append to non-list"}
   end
 end

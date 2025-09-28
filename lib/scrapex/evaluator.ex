@@ -131,7 +131,14 @@ defmodule Scrapex.Evaluator do
       {:binary_op, left_node, :double_plus, right_node} ->
         with {:ok, left_value} <- eval(left_node, scope),
              {:ok, right_value} <- eval(right_node, scope),
-             {:ok, result} <- Value.append(left_value, right_value) do
+             {:ok, result} <- Value.append_text(left_value, right_value) do
+          {:ok, result}
+        end
+
+      {:binary_op, left_node, :append, right_node} ->
+        with {:ok, left_value} <- eval(left_node, scope),
+             {:ok, right_value} <- eval(right_node, scope),
+             {:ok, result} <- Value.append_to_list(left_value, right_value) do
           {:ok, result}
         end
 

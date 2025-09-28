@@ -264,6 +264,112 @@ defmodule Scrapex.EvaluatorTest do
 
       assert {:error, _reason} = result
     end
+
+    test "evaluates append to list operation" do
+      # [1, 2] +< 3
+      list_ast = AST.list_literal([AST.integer(1), AST.integer(2)])
+      ast_node = AST.binary_op(list_ast, :append, AST.integer(3))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      expected = Value.list([Value.integer(1), Value.integer(2), Value.integer(3)])
+      assert result == {:ok, expected}
+    end
+
+    test "evaluates append to empty list" do
+      # [] +< 42
+      list_ast = AST.list_literal([])
+      ast_node = AST.binary_op(list_ast, :append, AST.integer(42))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      expected = Value.list([Value.integer(42)])
+      assert result == {:ok, expected}
+    end
+
+    test "evaluates append with text values" do
+      # ["hello"] +< "world"
+      list_ast = AST.list_literal([AST.text("hello")])
+      ast_node = AST.binary_op(list_ast, :append, AST.text("world"))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      expected = Value.list([Value.text("hello"), Value.text("world")])
+      assert result == {:ok, expected}
+    end
+
+    test "evaluates append with variables" do
+      # my_list +< item
+      ast_node = AST.binary_op(AST.identifier("my_list"), :append, AST.identifier("item"))
+
+      scope =
+        Scope.empty()
+        |> Scope.bind("my_list", Value.list([Value.integer(1), Value.integer(2)]))
+        |> Scope.bind("item", Value.integer(3))
+
+      result = Evaluator.eval(ast_node, scope)
+
+      expected = Value.list([Value.integer(1), Value.integer(2), Value.integer(3)])
+      assert result == {:ok, expected}
+    end
+
+    test "evaluates chained append operations" do
+      # [1] +< 2 +< 3
+      list_ast = AST.list_literal([AST.integer(1)])
+      middle_ast = AST.binary_op(list_ast, :append, AST.integer(2))
+      ast_node = AST.binary_op(middle_ast, :append, AST.integer(3))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      expected = Value.list([Value.integer(1), Value.integer(2), Value.integer(3)])
+      assert result == {:ok, expected}
+    end
+
+    test "evaluates append with nested list" do
+      # [1, 2] +< [3, 4]
+      list1_ast = AST.list_literal([AST.integer(1), AST.integer(2)])
+      list2_ast = AST.list_literal([AST.integer(3), AST.integer(4)])
+      ast_node = AST.binary_op(list1_ast, :append, list2_ast)
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      expected =
+        Value.list([
+          Value.integer(1),
+          Value.integer(2),
+          Value.list([Value.integer(3), Value.integer(4)])
+        ])
+
+      assert result == {:ok, expected}
+    end
+
+    test "returns error for append to non-list" do
+      # 42 +< 3 should fail
+      ast_node = AST.binary_op(AST.integer(42), :append, AST.integer(3))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert {:error, "Cannot append to non-list"} = result
+    end
+
+    test "returns error for append when left operand is undefined" do
+      # undefined_var +< 5
+      ast_node = AST.binary_op(AST.identifier("undefined_var"), :append, AST.integer(5))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert {:error, "Undefined variable: 'undefined_var'"} = result
+    end
+
+    test "returns error for append when right operand is undefined" do
+      # [1, 2] +< undefined_var
+      list_ast = AST.list_literal([AST.integer(1), AST.integer(2)])
+      ast_node = AST.binary_op(list_ast, :append, AST.identifier("undefined_var"))
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert {:error, "Undefined variable: 'undefined_var'"} = result
+    end
   end
 
   describe "where clauses" do
