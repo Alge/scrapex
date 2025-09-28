@@ -5,8 +5,8 @@ defmodule Scrapex.Parser.AccessTest do
 
   alias Scrapex.{Parser, Token, AST}
 
-  @tag :skip
   describe "field access expressions" do
+    @tag :skip
     test "parses a simple record field access" do
       # Input: "my_record.field"
       input = [

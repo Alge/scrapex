@@ -133,16 +133,18 @@ defmodule Scrapex.Parser do
           end
 
         next_token.type == :right_arrow and next_precedence > precedence_context ->
-          # A lambda declaration, this is just a special
-          # case of a pattern match expression!
-
-          # Parse the body of the lambda
-          case parse_expression(tl(token_list), 0) do
+          # For a right-associative operator, we parse the right-hand side
+          # with a precedence level one lower than our own. This allows
+          # nested operators of the same kind (for currying) and weaker
+          # operators (like `;`) to be correctly included in the body.
+          case parse_expression(tl(token_list), get_infix_precedence(:semicolon) + 1) do
             {:ok, body_ast, rest} ->
               pattern_clause = AST.pattern_clause(left_ast, body_ast)
               new_left_ast = AST.pattern_match_expression([pattern_clause])
 
-              parse_infix_expression(rest, new_left_ast, precedence_context)
+              # We don't need to loop here anymore, because the right-associative
+              # trick will handle the currying for us.
+              {:ok, new_left_ast, rest}
 
             {:error, reason} ->
               {:error, reason}

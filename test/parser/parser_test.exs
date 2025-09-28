@@ -76,4 +76,56 @@ defmodule Scrapex.ParserTest do
     assert {:ok, result} = Parser.parse(input)
     assert result == expected
   end
+
+  test "parses consecutive function bindings as siblings in a where-clause" do
+    # This test is designed to catch the precedence bug between `->` and `;`.
+    # The code represents:
+    # main_body
+    # ; f = x -> x
+    # ; g = y -> y
+
+    # The parser should group this as: `main_body ; (f = ... ; g = ...)`
+    # The incorrect, buggy behavior is to group it as: `main_body ; f = (x -> (x ; g = ...))`
+
+    input = [
+      Token.new(:identifier, "main_body", 1, 1),
+      Token.new(:semicolon, 1, 11),
+      Token.new(:identifier, "f", 1, 13),
+      Token.new(:equals, 1, 15),
+      Token.new(:identifier, "x", 1, 17),
+      Token.new(:right_arrow, 1, 19),
+      Token.new(:identifier, "x", 1, 22),
+      Token.new(:semicolon, 1, 23),
+      Token.new(:identifier, "g", 1, 25),
+      Token.new(:equals, 1, 27),
+      Token.new(:identifier, "y", 1, 29),
+      Token.new(:right_arrow, 1, 31),
+      Token.new(:identifier, "y", 1, 34),
+      Token.new(:eof, 1, 35)
+    ]
+
+    # The expected AST for the `f = x -> x` lambda
+    f_lambda =
+      AST.pattern_match_expression([
+        AST.pattern_clause(AST.identifier("x"), AST.identifier("x"))
+      ])
+
+    # The expected AST for the `g = y -> y` lambda
+    g_lambda =
+      AST.pattern_match_expression([
+        AST.pattern_clause(AST.identifier("y"), AST.identifier("y"))
+      ])
+
+    # The correct AST structure: a nested `where` with two sibling bindings.
+    expected =
+      AST.where(
+        AST.identifier("main_body"),
+        AST.where(
+          AST.binding("f", f_lambda),
+          AST.binding("g", g_lambda)
+        )
+      )
+
+    assert {:ok, ^expected} = Parser.parse(input)
+  end
 end

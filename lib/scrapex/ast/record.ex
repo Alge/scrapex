@@ -1,7 +1,6 @@
 defmodule Scrapex.AST.Record do
   @moduledoc "AST nodes for ScrapScript records."
 
-  alias Scrapex.AST.Identifier
   alias Scrapex.AST.Expression
   alias Scrapex.AST.Pattern
 

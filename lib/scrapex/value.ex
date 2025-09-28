@@ -7,92 +7,38 @@ defmodule Scrapex.Value do
           | {:float, float()}
           | {:text, String.t()}
           | {:list, [t()]}
-          | {:function, Expression.pattern_match_expression(), Scope.t()}
-          | {:variant, String.t()}
+          | {:function, String.t() | nil, Expression.pattern_match_expression(), Scope.t()}
+          | {:variant, String.t(), t() | nil}
           | {:record, [{String.t(), t()}]}
 
   def integer(i) when is_integer(i), do: {:integer, i}
   def float(f) when is_float(f), do: {:float, f}
   def text(s) when is_binary(s), do: {:text, s}
   def list(l) when is_list(l), do: {:list, l}
-  def function(expr, closure), do: {:function, expr, closure}
-  def variant(name) when is_binary(name), do: {:variant, name}
+  def function(expr, closure), do: {:function, nil, expr, closure}
+  def function(name, expr, closure) when is_binary(name), do: {:function, name, expr, closure}
+  def variant(name) when is_binary(name), do: {:variant, name, nil}
+  def variant(name, payload) when is_binary(name), do: {:variant, name, payload}
   def record(fields) when is_list(fields), do: {:record, fields}
 
-  def display!(value) do
-    case display(value) do
-      {:ok, s} ->
-        s
-
-      {:error, reason} ->
-        raise reason
-    end
-  end
-
-  def display({:record, fields}) do
-    case display_record_fields(fields, []) do
-      {:ok, field_strings} ->
-        {:ok, "{#{Enum.join(field_strings, ", ")}}"}
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  def display({:list, elements}) do
-    case display_list_elements(elements, []) do
-      {:ok, element_strings} ->
-        {:ok, "[#{Enum.join(element_strings, ", ")}]"}
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  def display({:variant, name}) do
-    {:ok, "##{name}"}
-  end
-
-  def display({:function, _, _}) do
-    {:ok, "<function>"}
-  end
-
-  def display({:integer, value}) do
-    {:ok, Integer.to_string(value)}
-  end
-
-  def display({:float, value}) do
-    {:ok, Float.to_string(value)}
-  end
-
-  def display({:text, value}) do
-    {:ok, value}
-  end
-
+  @doc """
+  Returns a string representation of a value.
+  Delegates to the `Scrapex.Display` protocol.
+  """
   def display(value) do
-    {:error, "Don't know how to convert value '#{inspect(value)}' to string"}
-  end
-
-  defp display_list_elements([], acc) do
-    {:ok, Enum.reverse(acc)}
-  end
-
-  defp display_list_elements([element | rest], acc) do
-    case display(element) do
-      {:ok, str} -> display_list_elements(rest, [str | acc])
-      {:error, reason} -> {:error, reason}
+    try do
+      {:ok, Scrapex.Display.to_string(value)}
+    rescue
+      # Use the Exception.message/1 function to correctly get the error string.
+      e in [Protocol.UndefinedError] -> {:error, Exception.message(e)}
     end
   end
 
-  defp display_record_fields([], acc) do
-    {:ok, Enum.reverse(acc)}
-  end
-
-  defp display_record_fields([{name, value} | rest], acc) do
-    case display(value) do
-      {:ok, value_str} -> display_record_fields(rest, ["#{name}: #{value_str}" | acc])
-      {:error, reason} -> {:error, reason}
-    end
+  @doc """
+  Returns a string representation of a value, raising an error on failure.
+  """
+  def display!(value) do
+    Scrapex.Display.to_string(value)
   end
 
   #######################################
@@ -215,5 +161,22 @@ defmodule Scrapex.Value do
 
   def append(a, b) do
     {:error, "Operator '++' not supported between value '#{inspect(a)}' and '#{inspect(b)}'"}
+  end
+
+  ##############   Cons   ##############
+
+  def cons!(a, b) do
+    case cons(a, b) do
+      {:ok, value} -> value
+      {:error, reason} -> raise reason
+    end
+  end
+
+  def cons(value, {:list, items}) do
+    {:ok, list([value | items])}
+  end
+
+  def cons(_value, _not_list) do
+    {:error, "Cannot perform cons operation on non-list"}
   end
 end

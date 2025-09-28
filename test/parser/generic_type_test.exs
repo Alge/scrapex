@@ -5,8 +5,8 @@ defmodule Scrapex.Parser.GenericTypeTest do
 
   alias Scrapex.{Parser, Token, AST}
 
-  @tag :skip
   describe "generic type declarations" do
+    @tag :skip
     test "parses a type declaration with a single generic parameter" do
       # Input: "maybe : a => #some a #none"
       input = [

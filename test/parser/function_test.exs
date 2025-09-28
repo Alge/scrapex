@@ -490,7 +490,7 @@ defmodule Scrapex.ParserTest.Functions do
     end
 
     test "parses a lambda whose body contains a where clause" do
-      # Input: "add_y; add_y = x -> x + y; y = 10"
+      # Input: "add_y; add_y = x -> (x + y; y = 10)"
       input = [
         Token.new(:identifier, "add_y", 1, 1),
         Token.new(:semicolon, 1, 7),
@@ -498,14 +498,16 @@ defmodule Scrapex.ParserTest.Functions do
         Token.new(:equals, 1, 15),
         Token.new(:identifier, "x", 1, 17),
         Token.new(:right_arrow, 1, 19),
-        Token.new(:identifier, "x", 1, 22),
-        Token.new(:plus, 1, 24),
-        Token.new(:identifier, "y", 1, 26),
-        Token.new(:semicolon, 1, 27),
-        Token.new(:identifier, "y", 1, 29),
-        Token.new(:equals, 1, 31),
-        Token.new(:integer, 10, 1, 33),
-        Token.new(:eof, 1, 35)
+        Token.new(:left_paren, 1, 22),
+        Token.new(:identifier, "x", 1, 23),
+        Token.new(:plus, 1, 25),
+        Token.new(:identifier, "y", 1, 27),
+        Token.new(:semicolon, 1, 28),
+        Token.new(:identifier, "y", 1, 30),
+        Token.new(:equals, 1, 32),
+        Token.new(:integer, 10, 1, 34),
+        Token.new(:right_paren, 1, 36),
+        Token.new(:eof, 1, 37)
       ]
 
       expected =

@@ -226,6 +226,44 @@ defmodule Scrapex.EvaluatorTest do
               "Unimplemented AST node: {:binary_op, {:integer, 1}, :some_future_op, {:integer, 2}}"} =
                result
     end
+
+    test "evaluates cons operation" do
+      # 1 >+ [2, 3]
+      list_ast = AST.list_literal([AST.integer(2), AST.integer(3)])
+      ast_node = AST.binary_op(AST.integer(1), :cons, list_ast)
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      expected = Value.list([Value.integer(1), Value.integer(2), Value.integer(3)])
+      assert result == {:ok, expected}
+    end
+
+    test "evaluates cons with variables" do
+      # head >+ tail; head = 5; tail = [10, 15]
+      ast_node = AST.binary_op(AST.identifier("head"), :cons, AST.identifier("tail"))
+
+      scope =
+        Scope.empty()
+        |> Scope.bind("head", Value.integer(5))
+        |> Scope.bind("tail", Value.list([Value.integer(10), Value.integer(15)]))
+
+      result = Evaluator.eval(ast_node, scope)
+
+      expected = Value.list([Value.integer(5), Value.integer(10), Value.integer(15)])
+      assert result == {:ok, expected}
+    end
+
+    # TODO: type system not implemented yet!
+    @tag :skip
+    test "returns error for cons type mismatch" do
+      # "hello" >+ [1, 2] should fail
+      list_ast = AST.list_literal([AST.integer(1), AST.integer(2)])
+      ast_node = AST.binary_op(AST.text("hello"), :cons, list_ast)
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert {:error, _reason} = result
+    end
   end
 
   describe "where clauses" do

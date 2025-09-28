@@ -1,1 +1,1 @@
-sum_pair [3, 4] ; sum_pair = [x, y] -> x + y
+sum_pair [3, 4] ; sum_pair = | [x, y] -> x + y

@@ -1,0 +1,1 @@
+get_name {name = "John", age = 30} ; get_name = | {name = n} -> n

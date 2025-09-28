@@ -8,7 +8,12 @@ defmodule Scrapex.CLI do
 
   alias Scrapex.{Lexer, Parser, Token, Evaluator, Value, Evaluator.Scope}
 
+  require Logger
+
   def main(args) do
+    # Set default log level to warning
+    Logger.configure(level: :warning)
+
     case args do
       ["lex" | rest_args] ->
         run_lex(rest_args)
@@ -61,13 +66,19 @@ defmodule Scrapex.CLI do
   # =============================================================================
 
   defp handle_input(args, options_spec, command_help, action_fun) do
-    full_options_spec = options_spec ++ [help: :boolean]
+    full_options_spec = options_spec ++ [help: :boolean, log_level: :string]
 
     try do
-      # --- THIS IS THE FIX ---
-      # OptionParser.parse!/2 returns a 2-element tuple on success.
       {parsed_opts, positional_args} =
-        OptionParser.parse!(args, switches: full_options_spec, aliases: [c: :code, h: :help])
+        OptionParser.parse!(args,
+          switches: full_options_spec,
+          aliases: [c: :code, h: :help, l: :log_level]
+        )
+
+      # Configure log level if provided
+      if log_level = parsed_opts[:log_level] do
+        configure_log_level(log_level)
+      end
 
       cond do
         parsed_opts[:help] ->
@@ -98,7 +109,6 @@ defmodule Scrapex.CLI do
           System.halt(1)
       end
     rescue
-      # OptionParser only raises one kind of error.
       e in [OptionParser.ParseError] ->
         IO.puts(:stderr, "Error: #{Exception.message(e)}")
         IO.puts(command_help)
@@ -106,11 +116,41 @@ defmodule Scrapex.CLI do
     end
   end
 
+  # =============================================================================
+  # LOG LEVEL CONFIGURATION
+  # =============================================================================
+
+  defp configure_log_level(log_level_str) do
+    valid_levels = ["debug", "info", "warning", "error", "none"]
+
+    if log_level_str in valid_levels do
+      case log_level_str do
+        "none" ->
+          Logger.configure(level: :none)
+
+        level_str ->
+          level_atom = String.to_atom(level_str)
+          Logger.configure(level: level_atom)
+      end
+    else
+      IO.puts(
+        :stderr,
+        "Error: Invalid log level '#{log_level_str}'. Valid levels: #{Enum.join(valid_levels, ", ")}"
+      )
+
+      System.halt(1)
+    end
+  end
+
+  # =============================================================================
+  # ACTION FUNCTIONS
+  # =============================================================================
+
   # Action function for the 'lex' command.
   defp lex_and_print(input, source) do
     case Lexer.tokenize(input) do
       tokens when is_list(tokens) ->
-        IO.puts("Successfully lexed #{source}:")
+        Logger.info("Successfully lexed #{source}:")
         print_tokens(tokens)
 
       {:error, reason} ->
@@ -125,7 +165,7 @@ defmodule Scrapex.CLI do
       tokens when is_list(tokens) ->
         case Parser.parse(tokens) do
           {:ok, ast} ->
-            IO.puts("Successfully parsed #{source}:")
+            Logger.info("Successfully parsed #{source}:")
             IO.inspect(ast, pretty: true)
 
           {:error, reason} ->
@@ -150,7 +190,7 @@ defmodule Scrapex.CLI do
 
             case Evaluator.eval(ast, scope) do
               {:ok, value} ->
-                IO.puts("Successfully evaluated #{source}:")
+                Logger.info("Successfully evaluated #{source}:")
                 IO.puts(Value.display!(value))
 
               {:error, reason} ->
@@ -197,49 +237,53 @@ defmodule Scrapex.CLI do
         eval          Evaluate the input. Use `scrapex eval --help` for details.
 
     GLOBAL OPTIONS:
-        -h, --help    Show this help message.
+        -l, --log-level LEVEL    Set log level (debug, info, warning, error, none). Default: warning
+        -h, --help               Show this help message.
     """)
   end
 
   defp lex_help do
     """
     USAGE:
-        scrapex lex [FILE]
+        scrapex lex [OPTIONS] [FILE]
         scrapex lex -c "CODE"
 
     Tokenizes the input from a file, stdin, or a command-line string.
 
     OPTIONS:
-        -c, --code STRING     Provide the input code as a string.
-        -h, --help            Show this help message.
+        -c, --code STRING        Provide the input code as a string.
+        -l, --log-level LEVEL    Set log level (debug, info, warning, error, none). Default: warning
+        -h, --help               Show this help message.
     """
   end
 
   defp parse_help do
     """
     USAGE:
-        scrapex parse [FILE]
+        scrapex parse [OPTIONS] [FILE]
         scrapex parse -c "CODE"
 
     Parses the input from a file, stdin, or a command-line string.
 
     OPTIONS:
-        -c, --code STRING     Provide the input code as a string.
-        -h, --help            Show this help message.
+        -c, --code STRING        Provide the input code as a string.
+        -l, --log-level LEVEL    Set log level (debug, info, warning, error, none). Default: warning
+        -h, --help               Show this help message.
     """
   end
 
   defp eval_help do
     """
     USAGE:
-        scrapex eval [FILE]
+        scrapex eval [OPTIONS] [FILE]
         scrapex eval -c "CODE"
 
     Evaluates the input from a file, stdin, or a command-line string.
 
     OPTIONS:
-        -c, --code STRING     Provide the input code as a string.
-        -h, --help            Show this help message.
+        -c, --code STRING        Provide the input code as a string.
+        -l, --log-level LEVEL    Set log level (debug, info, warning, error, none). Default: warning
+        -h, --help               Show this help message.
     """
   end
 end

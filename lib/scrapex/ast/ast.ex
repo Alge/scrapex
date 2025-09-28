@@ -41,7 +41,7 @@ defmodule Scrapex.AST do
   defdelegate cons_list_pattern(head, tail), to: Pattern
 
   defdelegate variant_pattern(identifier, patterns), to: Pattern
-  defdelegate text_pattern(text, pattern), to: Pattern
+  defdelegate text_pattern(text, rest_pattern), to: Pattern
 
   # === TYPE CONSTRUCTORS ===
   defdelegate variant(name), to: Type

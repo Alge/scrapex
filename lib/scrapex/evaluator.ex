@@ -73,9 +73,15 @@ defmodule Scrapex.Evaluator do
         {:ok, Value.function({:pattern_match_expression, clauses}, scope)}
 
       {:function_app, func_expr, arg_expr} ->
+        Logger.debug("About to apply function")
+
         with {:ok, function_value} <- eval(func_expr, scope),
              {:ok, arg_value} <- eval(arg_expr, scope) do
-          apply_function(function_value, arg_value)
+          Logger.debug("Function: #{inspect(function_value)}")
+          Logger.debug("Argument: #{inspect(arg_value)}")
+          result = apply_function(function_value, arg_value)
+          Logger.debug("Application result: #{inspect(result)}")
+          result
         end
 
       {:unary_op, :minus, operand} ->
@@ -126,6 +132,13 @@ defmodule Scrapex.Evaluator do
         with {:ok, left_value} <- eval(left_node, scope),
              {:ok, right_value} <- eval(right_node, scope),
              {:ok, result} <- Value.append(left_value, right_value) do
+          {:ok, result}
+        end
+
+      {:binary_op, left_node, :cons, right_node} ->
+        with {:ok, left_value} <- eval(left_node, scope),
+             {:ok, right_value} <- eval(right_node, scope),
+             {:ok, result} <- Value.cons(left_value, right_value) do
           {:ok, result}
         end
 
@@ -198,37 +211,72 @@ defmodule Scrapex.Evaluator do
   # but "body" can have dependencies inside "binding", so that
   # needs to be evaluated first
   defp eval_binding({:where, body, binding}, scope) do
+    Logger.debug(
+      "Entering eval_binding(:where). First evaluating OUTER binding: #{inspect(binding)}"
+    )
+
     case eval_binding(binding, scope) do
       {:ok, new_scope} ->
+        Logger.debug("OUTER binding succeeded. Now evaluating INNER binding: #{inspect(body)}")
         eval_binding(body, new_scope)
 
       {:error, reason} ->
+        Logger.debug("OUTER binding failed.")
         {:error, reason}
     end
   end
 
+  # Binding of functions
+  defp eval_binding({:binding, name, {:pattern_match_expression, _} = pme}, scope) do
+    Logger.debug("Entering eval_binding(:binding) for a NAMED FUNCTION: '#{name}'")
+
+    # Create a unified function value that ALWAYS remembers its binding name.
+    # The closure is the scope that exists BEFORE this binding.
+    function_value = Value.function(name, pme, scope)
+    Logger.debug("Created function value: #{inspect(function_value)}")
+
+    new_scope = Scope.bind(scope, name, function_value)
+    Logger.debug("Returning new scope with '#{name}' bound.")
+    {:ok, new_scope}
+  end
+
   # Regular bindings
   defp eval_binding({:binding, name, expression}, scope) do
-    Logger.debug("Binding variable #{name}")
+    Logger.debug("Entering eval_binding(:binding) for a VARIABLE: '#{name}'")
     Logger.debug("Evaluating expression to be bound: #{inspect(expression)}")
 
     case eval(expression, scope) do
       {:ok, value} ->
-        Logger.debug("Binding'#{name}' =  #{inspect(value)}")
+        Logger.debug("Binding '#{name}' =  #{inspect(value)}")
         new_scope = Scope.bind(scope, name, value)
 
-        Logger.debug("New scope: #{inspect(new_scope)}")
+        Logger.debug("Returning new scope with '#{name}' bound.")
         {:ok, new_scope}
 
       {:error, reason} ->
+        Logger.debug("Expression evaluation for '#{name}' failed.")
         {:error, reason}
     end
   end
 
   # Function applications
 
-  defp apply_function({:function, {:pattern_match_expression, clauses}, closure_scope}, arg_value) do
+  # Anonymous function
+  defp apply_function(
+         {:function, nil, {:pattern_match_expression, clauses}, closure_scope},
+         arg_value
+       ) do
     try_pattern_clauses(clauses, arg_value, closure_scope)
+  end
+
+  # Named function, this could be recursive!
+  defp apply_function(
+         {:function, name, {:pattern_match_expression, clauses}, closure_scope} = func,
+         arg_value
+       ) do
+    # Add the reference to itself to the scope
+    tmp_scope = Scope.bind(closure_scope, name, func)
+    try_pattern_clauses(clauses, arg_value, tmp_scope)
   end
 
   defp apply_function(non_function, _arg_value) do
@@ -236,15 +284,29 @@ defmodule Scrapex.Evaluator do
   end
 
   defp try_pattern_clauses([], _arg_value, _closure_scope) do
+    Logger.debug("No patterns matched!")
     {:error, "No pattern matched the argument"}
   end
 
   defp try_pattern_clauses([{:pattern_clause, pattern, body} | rest], arg_value, scope) do
+    Logger.debug("Trying pattern: #{inspect(pattern)} against #{inspect(arg_value)}")
+
     case pattern_matches(pattern, arg_value) do
       {:ok, bindings} ->
-        new_scope = apply_bindings(bindings, scope)
-        eval(body, new_scope)
+        Logger.debug("Pattern matched! Bindings: #{inspect(bindings)}")
+        # Make sure we don't bind a name to two different values!
+        case check_binding_consistency(bindings) do
+          :ok ->
+            # back to simple version
+            new_scope = apply_bindings(bindings, scope)
+            eval(body, new_scope)
 
+          # Variable conflicts, this is not a match. Try next pattern
+          {:error, :variable_conflict} ->
+            try_pattern_clauses(rest, arg_value, scope)
+        end
+
+      # Not match, try next pattern
       {:error, :no_match} ->
         try_pattern_clauses(rest, arg_value, scope)
     end
@@ -256,8 +318,70 @@ defmodule Scrapex.Evaluator do
     end)
   end
 
+  defp check_binding_consistency(bindings) do
+    check_bindings_recursive(bindings, %{})
+  end
+
+  defp check_bindings_recursive([], _seen), do: :ok
+
+  defp check_bindings_recursive([{name, value} | rest], seen) do
+    case Map.get(seen, name) do
+      nil ->
+        # First time seeing this variable
+        check_bindings_recursive(rest, Map.put(seen, name, value))
+
+      ^value ->
+        # Same variable, same value - ok
+        check_bindings_recursive(rest, seen)
+
+      _other_value ->
+        # Same variable, different value - conflict
+        {:error, :variable_conflict}
+    end
+  end
+
+  defp pattern_matches({:text_pattern, {:text, prefix}, rest_pattern}, {:text, value}) do
+    if String.starts_with?(value, prefix) do
+      {_prefix_part, rest_of_string} = String.split_at(value, String.length(prefix))
+
+      # Recursively match the `rest_pattern` against the correctly extracted remainder.
+      pattern_matches(rest_pattern, Value.text(rest_of_string))
+    else
+      {:error, :no_match}
+    end
+  end
+
   defp pattern_matches({:identifier, name}, arg_value) do
     {:ok, [{name, arg_value}]}
+  end
+
+  defp pattern_matches({:variant, name, _}, {:variant, name, nil}) do
+    # It's a match if the names are the same.
+    # We ignore the payload (`_`) from the AST node.
+    {:ok, []}
+  end
+
+  defp pattern_matches(
+         {:variant_pattern, {:identifier, name}, p_payload_patterns},
+         {:variant, name, v_payload}
+       ) do
+    case {p_payload_patterns, v_payload} do
+      # Case for a pattern like `#none` that expects no payload,
+      # and a value that has no payload.
+      {[], nil} ->
+        {:ok, []}
+
+      # The main case: The pattern expects ONE payload (e.g., `[v]`),
+      # and the value has a payload.
+      {[single_payload_pattern], payload} when not is_nil(payload) ->
+        # We extract the single pattern from the list and match it
+        # against the value's payload.
+        pattern_matches(single_payload_pattern, payload)
+
+      # All other combinations are a mismatch.
+      _ ->
+        {:error, :no_match}
+    end
   end
 
   defp pattern_matches({:wildcard}, _arg_value) do
@@ -294,8 +418,112 @@ defmodule Scrapex.Evaluator do
     end
   end
 
+  defp pattern_matches(
+         {:concat_list_pattern, patterns, rest_pattern},
+         {:list, values}
+       ) do
+    case match_pattern_list(patterns, values, []) do
+      {:ok, bindings, remaining_items} ->
+        case pattern_matches(rest_pattern, Value.list(remaining_items)) do
+          {:ok, rest_bindings} ->
+            {:ok, bindings ++ rest_bindings}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp pattern_matches({:record_pattern, pattern_fields}, {:record, record_fields}) do
+    # First separate the rest pattern(s) from the explisit patterns.
+    # The rest pattern(s) are handled separatly from the explicit ones
+    {rest_patterns, explicit_patterns} =
+      Enum.split_with(pattern_fields, fn
+        {:record_rest, _} -> true
+        _ -> false
+      end)
+
+    case match_pattern_record(explicit_patterns, record_fields) do
+      {:ok, bindings, remaining_fields} ->
+        # Time to handle th rest pattern if available
+        case rest_patterns do
+          # No rest pattern, we need to make sure there are no record fields left!
+          [] ->
+            # "open" record bindings. We don't care if there are more keys,
+            # just that all patterns we have provided matched
+            {:ok, bindings}
+
+          # "Closed" record bindings. if we want to match exactly on the record content
+          # case remaining_fields do
+          #   [] -> {:ok, bindings}
+          #   _ -> {:error, :no_match}
+          # end
+
+          # Make sure we only have one rest pattern
+          [_, _ | _] ->
+            {
+              :error,
+              "Only one rest pattern allowed"
+            }
+
+          # Add the rest pattern binding
+          [{:record_rest, rest_name}] ->
+            {:ok, [{rest_name, Value.record(remaining_fields)} | bindings]}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
   defp pattern_matches(_pattern, _arg_value) do
     {:error, :no_match}
+  end
+
+  # Entry point for matching explicit record patterns
+  defp match_pattern_record(explicit_patterns, value_fields) do
+    match_pattern_record(explicit_patterns, value_fields, [])
+  end
+
+  # Base case, return the bindings and remaining fields
+  defp match_pattern_record([], fields_left, bindings) do
+    {:ok, Enum.reverse(bindings), fields_left}
+  end
+
+  # More pattern fields, but no record fields left to match against
+  defp match_pattern_record(_pattern_fields, [], _bindings) do
+    {:error, :no_match}
+  end
+
+  # Recursive part, make sure there is a value field for each pattern field
+  defp match_pattern_record(
+         [{:pattern_field, name, pattern} | remaining_patterns],
+         value_fields,
+         bindings
+       ) do
+    # First make sure there is a field with the same key in the value fields
+
+    case List.keyfind(value_fields, name, 0) do
+      {_key, value_expression} ->
+        case pattern_matches(pattern, value_expression) do
+          {:ok, new_bindings} ->
+            # Remove the field from the value fields list as we have matched against it
+            match_pattern_record(
+              remaining_patterns,
+              List.keydelete(value_fields, name, 0),
+              new_bindings ++ bindings
+            )
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+
+      nil ->
+        {:error, :no_match}
+    end
   end
 
   # no patterns left, but maybe remaining list items

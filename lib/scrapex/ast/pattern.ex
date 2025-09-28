@@ -25,7 +25,7 @@ defmodule Scrapex.AST.Pattern do
   # Other patterns
   # TODO: Maybe only allow one pattern here?
   @type variant_pattern :: {:variant_pattern, identifier :: Identifier.t(), patterns :: [t()]}
-  @type text_pattern :: {:text_pattern, text :: Literal.text_literal(), pattern :: t()}
+  @type text_pattern :: {:text_pattern, text :: Literal.text_literal(), rest_pattern :: t()}
 
   # Union of all patterns
   @type t ::
@@ -72,5 +72,5 @@ defmodule Scrapex.AST.Pattern do
   def variant_pattern(identifier, patterns), do: {:variant_pattern, identifier, patterns}
 
   @doc "Create a text pattern"
-  def text_pattern(text, pattern), do: {:text_pattern, text, pattern}
+  def text_pattern(text, rest_pattern), do: {:text_pattern, text, rest_pattern}
 end

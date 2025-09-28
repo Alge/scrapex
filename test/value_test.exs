@@ -23,7 +23,7 @@ defmodule Scrapex.ValueTest do
       pattern_expr = {:pattern_match_expression, []}
       scope = Scope.empty()
 
-      assert Value.function(pattern_expr, scope) == {:function, pattern_expr, scope}
+      assert Value.function(pattern_expr, scope) == {:function, nil, pattern_expr, scope}
     end
 
     test "display function value" do
@@ -53,7 +53,7 @@ defmodule Scrapex.ValueTest do
     end
 
     test "display text" do
-      assert Value.display!(Value.text("Hello")) == "Hello"
+      assert Value.display!(Value.text("Hello")) == "\"Hello\""
     end
 
     test "display! empty list" do
@@ -88,7 +88,7 @@ defmodule Scrapex.ValueTest do
           Value.text("world")
         ])
 
-      assert Value.display!(list_value) == "[hello, world]"
+      assert Value.display!(list_value) == "[\"hello\", \"world\"]"
     end
 
     test "display! nested lists" do
@@ -108,18 +108,36 @@ defmodule Scrapex.ValueTest do
   end
 
   describe "Variant values" do
-    test "create variant value" do
-      assert Value.variant("true") == {:variant, "true"}
+    test "create variant value without payload" do
+      # A variant without a payload is represented internally with a nil payload
+      assert Value.variant("true") == {:variant, "true", nil}
     end
 
-    test "display variant value" do
+    test "create variant value with a payload" do
+      payload = Value.integer(42)
+      assert Value.variant("some", payload) == {:variant, "some", payload}
+    end
+
+    test "display variant without payload" do
       variant_value = Value.variant("success")
       assert Value.display(variant_value) == {:ok, "#success"}
     end
 
-    test "display! variant value" do
+    test "display! variant without payload" do
       variant_value = Value.variant("error")
       assert Value.display!(variant_value) == "#error"
+    end
+
+    test "display variant with a simple payload" do
+      payload = Value.integer(10)
+      variant_value = Value.variant("count", payload)
+      assert Value.display(variant_value) == {:ok, "#count 10"}
+    end
+
+    test "display! variant with a complex payload" do
+      payload = Value.record([{"id", Value.integer(123)}])
+      variant_value = Value.variant("user", payload)
+      assert Value.display!(variant_value) == "#user {id: 123}"
     end
 
     test "negate returns error for variant" do
@@ -151,13 +169,13 @@ defmodule Scrapex.ValueTest do
     test "display record with one field" do
       fields = [{"name", Value.text("Bob")}]
       record_value = Value.record(fields)
-      assert Value.display(record_value) == {:ok, "{name: Bob}"}
+      assert Value.display(record_value) == {:ok, "{name: \"Bob\"}"}
     end
 
     test "display record with multiple fields" do
       fields = [{"name", Value.text("Alice")}, {"age", Value.integer(30)}]
       record_value = Value.record(fields)
-      assert Value.display(record_value) == {:ok, "{name: Alice, age: 30}"}
+      assert Value.display(record_value) == {:ok, "{name: \"Alice\", age: 30}"}
     end
 
     test "display! record" do
@@ -312,6 +330,58 @@ defmodule Scrapex.ValueTest do
       assert_raise RuntimeError, fn ->
         Value.negate!(Value.list([Value.integer(1)]))
       end
+    end
+
+    ############## Cons (>+) ##############
+
+    test "cons integer to integer list" do
+      list_value = Value.list([Value.integer(2), Value.integer(3)])
+      result = Value.cons!(Value.integer(1), list_value)
+      expected = Value.list([Value.integer(1), Value.integer(2), Value.integer(3)])
+      assert result == expected
+    end
+
+    test "cons text to text list" do
+      list_value = Value.list([Value.text("world")])
+      result = Value.cons!(Value.text("hello"), list_value)
+      expected = Value.list([Value.text("hello"), Value.text("world")])
+      assert result == expected
+    end
+
+    test "cons to empty list" do
+      empty_list = Value.list([])
+      result = Value.cons!(Value.integer(42), empty_list)
+      expected = Value.list([Value.integer(42)])
+      assert result == expected
+    end
+
+    test "cons returns error for non-list second argument" do
+      result = Value.cons(Value.integer(1), Value.integer(2))
+      assert {:error, _reason} = result
+    end
+
+    test "cons! raises error for non-list second argument" do
+      assert_raise RuntimeError, fn ->
+        Value.cons!(Value.integer(1), Value.integer(2))
+      end
+    end
+
+    # TODO: Type system not present yet
+    @tag :skip
+    test "cons returns error for type mismatch in list elements" do
+      # Trying to cons integer to text list should fail
+      text_list = Value.list([Value.text("hello")])
+      result = Value.cons(Value.integer(1), text_list)
+      assert {:error, _reason} = result
+    end
+
+    test "nested cons operations" do
+      # 1 >+ (2 >+ [3]) should produce [1, 2, 3]
+      inner_list = Value.list([Value.integer(3)])
+      middle_result = Value.cons!(Value.integer(2), inner_list)
+      final_result = Value.cons!(Value.integer(1), middle_result)
+      expected = Value.list([Value.integer(1), Value.integer(2), Value.integer(3)])
+      assert final_result == expected
     end
   end
 end
