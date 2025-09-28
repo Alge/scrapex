@@ -32,6 +32,9 @@ defmodule Scrapex.Evaluator do
       {:variant, name, _} ->
         {:ok, Value.variant(name)}
 
+      {:hole} ->
+        {:ok, Value.hole()}
+
       {:list_literal, elements} ->
         case eval_list_items(elements, scope, []) do
           {:ok, values} -> {:ok, Value.list(values)}

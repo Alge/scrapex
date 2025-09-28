@@ -10,6 +10,7 @@ defmodule Scrapex.Value do
           | {:function, String.t() | nil, Expression.pattern_match_expression(), Scope.t()}
           | {:variant, String.t(), t() | nil}
           | {:record, [{String.t(), t()}]}
+          | {:hole}
 
   def integer(i) when is_integer(i), do: {:integer, i}
   def float(f) when is_float(f), do: {:float, f}
@@ -20,6 +21,7 @@ defmodule Scrapex.Value do
   def variant(name) when is_binary(name), do: {:variant, name, nil}
   def variant(name, payload) when is_binary(name), do: {:variant, name, payload}
   def record(fields) when is_list(fields), do: {:record, fields}
+  def hole(), do: {:hole}
 
   @doc """
   Returns a string representation of a value.
@@ -215,6 +217,10 @@ defmodule Scrapex.Value do
 
   def equal({:variant, _, _}, {:variant, _, _}) do
     {:ok, variant("false")}
+  end
+
+  def equal({:hole}, {:hole}) do
+    {:ok, variant("true")}
   end
 
   def equal(a, b) do

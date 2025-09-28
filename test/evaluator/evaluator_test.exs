@@ -88,6 +88,70 @@ defmodule Scrapex.EvaluatorTest do
       # Should find x in parent scope
       assert result == {:ok, Value.integer(100)}
     end
+
+    test "evaluates hole literal" do
+      ast_node = AST.hole()
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.hole()}
+    end
+
+    test "evaluates hole in where clause" do
+      # result ; result = ()
+      ast_node =
+        AST.where(
+          AST.identifier("result"),
+          AST.binding("result", AST.hole())
+        )
+
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.hole()}
+    end
+
+    test "evaluates hole in list" do
+      # [1, (), 3]
+      ast_node =
+        AST.list_literal([
+          AST.integer(1),
+          AST.hole(),
+          AST.integer(3)
+        ])
+
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      expected =
+        Value.list([
+          Value.integer(1),
+          Value.hole(),
+          Value.integer(3)
+        ])
+
+      assert result == {:ok, expected}
+    end
+
+    test "evaluates hole in record" do
+      # {missing: (), present: 42}
+      ast_node =
+        AST.record_literal([
+          {:expression_field, "missing", AST.hole()},
+          {:expression_field, "present", AST.integer(42)}
+        ])
+
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      expected =
+        Value.record([
+          {"missing", Value.hole()},
+          {"present", Value.integer(42)}
+        ])
+
+      assert result == {:ok, expected}
+    end
   end
 
   describe "binary operations" do

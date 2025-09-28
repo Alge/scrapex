@@ -11,7 +11,7 @@ defmodule Scrapex.AST.Literal do
   @type interpolated_text_literal :: {:interpolated_text, value :: String.t()}
   @type hex_byte_literal :: {:hex_byte, value :: String.t()}
   @type base64_literal :: {:base64, value :: String.t()}
-  @type hole_literal :: {:hole, nil}
+  @type hole_literal :: {:hole}
 
   @type t ::
           integer_literal()
@@ -45,7 +45,7 @@ defmodule Scrapex.AST.Literal do
   def base64(value), do: {:base64, value}
 
   @doc "Create a hole literal"
-  def hole(), do: {:hole, nil}
+  def hole(), do: {:hole}
 
   @literal_types [:integer, :float, :text, :interpolated_text, :hexbyte, :base64, :hole]
 
