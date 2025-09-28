@@ -4,7 +4,7 @@ defmodule Scrapex.Evaluator do
   """
 
   require Logger
-  alias Scrapex.{Value, Evaluator.Scope}
+  alias Scrapex.{Value, Evaluator.Scope, AST}
 
   @spec eval(term()) :: {:ok, Value.t()} | {:error, String.t()}
   def eval(ast_node) do
@@ -190,6 +190,12 @@ defmodule Scrapex.Evaluator do
              {:ok, right_value} <- eval(right_node, scope),
              {:ok, result} <- Value.greater_than(left_value, right_value) do
           {:ok, result}
+        end
+
+      {:binary_op, left_node, :pipe_operator, right_node} ->
+        with {:ok, value} <- eval(left_node, scope),
+             {:ok, func} <- eval(right_node, scope) do
+          apply_function(func, value)
         end
 
       {:where, body, binding_ast} ->

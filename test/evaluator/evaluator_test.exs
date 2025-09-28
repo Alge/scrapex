@@ -629,6 +629,264 @@ defmodule Scrapex.EvaluatorTest do
     end
   end
 
+  describe "pipe operator evaluation" do
+    test "evaluates simple pipe operation" do
+      # 5 |> double where double = x -> x * 2
+      ast_node = AST.binary_op(AST.integer(5), :pipe_operator, AST.identifier("double"))
+
+      double_pattern =
+        AST.pattern_match_expression([
+          AST.pattern_clause(
+            AST.identifier("x"),
+            AST.binary_op(AST.identifier("x"), :multiply, AST.integer(2))
+          )
+        ])
+
+      double_func = Value.function(double_pattern, Scope.empty())
+
+      scope = Scope.empty() |> Scope.bind("double", double_func)
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.integer(10)}
+    end
+
+    test "evaluates chained pipe operations" do
+      # 5 |> double |> add_one
+      inner_pipe = AST.binary_op(AST.integer(5), :pipe_operator, AST.identifier("double"))
+      ast_node = AST.binary_op(inner_pipe, :pipe_operator, AST.identifier("add_one"))
+
+      double_pattern =
+        AST.pattern_match_expression([
+          AST.pattern_clause(
+            AST.identifier("x"),
+            AST.binary_op(AST.identifier("x"), :multiply, AST.integer(2))
+          )
+        ])
+
+      add_one_pattern =
+        AST.pattern_match_expression([
+          AST.pattern_clause(
+            AST.identifier("x"),
+            AST.binary_op(AST.identifier("x"), :plus, AST.integer(1))
+          )
+        ])
+
+      scope =
+        Scope.empty()
+        |> Scope.bind("double", Value.function(double_pattern, Scope.empty()))
+        |> Scope.bind("add_one", Value.function(add_one_pattern, Scope.empty()))
+
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.integer(11)}
+    end
+
+    test "evaluates pipe with text values" do
+      # "hello" |> uppercase where uppercase = s -> s ++ "!"
+      ast_node = AST.binary_op(AST.text("hello"), :pipe_operator, AST.identifier("exclaim"))
+
+      exclaim_pattern =
+        AST.pattern_match_expression([
+          AST.pattern_clause(
+            AST.identifier("s"),
+            AST.binary_op(AST.identifier("s"), :double_plus, AST.text("!"))
+          )
+        ])
+
+      exclaim_func = Value.function(exclaim_pattern, Scope.empty())
+
+      scope = Scope.empty() |> Scope.bind("exclaim", exclaim_func)
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.text("hello!")}
+    end
+
+    test "evaluates pipe with list values" do
+      # [1, 2] |> head where head extracts first element
+      ast_node =
+        AST.binary_op(
+          AST.list_literal([AST.integer(1), AST.integer(2)]),
+          :pipe_operator,
+          AST.identifier("head")
+        )
+
+      head_pattern =
+        AST.pattern_match_expression([
+          AST.pattern_clause(
+            AST.cons_list_pattern(AST.identifier("h"), AST.identifier("_")),
+            AST.identifier("h")
+          )
+        ])
+
+      head_func = Value.function(head_pattern, Scope.empty())
+
+      scope = Scope.empty() |> Scope.bind("head", head_func)
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.integer(1)}
+    end
+
+    test "evaluates pipe with record values" do
+      # {name: "Alice"} |> get_name where get_name = r -> r.name
+      record_ast =
+        AST.record_literal([
+          {:expression_field, "name", AST.text("Alice")}
+        ])
+
+      ast_node = AST.binary_op(record_ast, :pipe_operator, AST.identifier("get_name"))
+
+      get_name_pattern =
+        AST.pattern_match_expression([
+          AST.pattern_clause(
+            AST.identifier("r"),
+            AST.field_access(AST.identifier("r"), "name")
+          )
+        ])
+
+      get_name_func = Value.function(get_name_pattern, Scope.empty())
+
+      scope = Scope.empty() |> Scope.bind("get_name", get_name_func)
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.text("Alice")}
+    end
+
+    test "evaluates pipe with variables" do
+      # x |> f where x = 10, f = n -> n - 5
+      ast_node = AST.binary_op(AST.identifier("x"), :pipe_operator, AST.identifier("f"))
+
+      subtract_pattern =
+        AST.pattern_match_expression([
+          AST.pattern_clause(
+            AST.identifier("n"),
+            AST.binary_op(AST.identifier("n"), :minus, AST.integer(5))
+          )
+        ])
+
+      scope =
+        Scope.empty()
+        |> Scope.bind("x", Value.integer(10))
+        |> Scope.bind("f", Value.function(subtract_pattern, Scope.empty()))
+
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.integer(5)}
+    end
+
+    test "evaluates pipe in where clause" do
+      # result ; result = 3 |> double
+      pipe_expr = AST.binary_op(AST.integer(3), :pipe_operator, AST.identifier("double"))
+
+      ast_node =
+        AST.where(
+          AST.identifier("result"),
+          AST.binding("result", pipe_expr)
+        )
+
+      double_pattern =
+        AST.pattern_match_expression([
+          AST.pattern_clause(
+            AST.identifier("x"),
+            AST.binary_op(AST.identifier("x"), :multiply, AST.integer(2))
+          )
+        ])
+
+      scope = Scope.empty() |> Scope.bind("double", Value.function(double_pattern, Scope.empty()))
+      result = Evaluator.eval(ast_node, scope)
+
+      assert result == {:ok, Value.integer(6)}
+    end
+
+    test "evaluates complex pipe chain with mixed operations" do
+      # 2 |> double |> add_one |> double
+      pipe1 = AST.binary_op(AST.integer(2), :pipe_operator, AST.identifier("double"))
+      pipe2 = AST.binary_op(pipe1, :pipe_operator, AST.identifier("add_one"))
+      ast_node = AST.binary_op(pipe2, :pipe_operator, AST.identifier("double"))
+
+      double_pattern =
+        AST.pattern_match_expression([
+          AST.pattern_clause(
+            AST.identifier("x"),
+            AST.binary_op(AST.identifier("x"), :multiply, AST.integer(2))
+          )
+        ])
+
+      add_one_pattern =
+        AST.pattern_match_expression([
+          AST.pattern_clause(
+            AST.identifier("x"),
+            AST.binary_op(AST.identifier("x"), :plus, AST.integer(1))
+          )
+        ])
+
+      scope =
+        Scope.empty()
+        |> Scope.bind("double", Value.function(double_pattern, Scope.empty()))
+        |> Scope.bind("add_one", Value.function(add_one_pattern, Scope.empty()))
+
+      result = Evaluator.eval(ast_node, scope)
+
+      # 2 |> double = 4, |> add_one = 5, |> double = 10
+      assert result == {:ok, Value.integer(10)}
+    end
+
+    test "returns error when function is undefined" do
+      # 5 |> undefined_func
+      ast_node = AST.binary_op(AST.integer(5), :pipe_operator, AST.identifier("undefined_func"))
+
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert {:error, "Undefined variable: 'undefined_func'"} = result
+    end
+
+    test "returns error when left operand evaluation fails" do
+      # undefined_var |> double
+      ast_node =
+        AST.binary_op(AST.identifier("undefined_var"), :pipe_operator, AST.identifier("double"))
+
+      double_pattern =
+        AST.pattern_match_expression([
+          AST.pattern_clause(
+            AST.identifier("x"),
+            AST.binary_op(AST.identifier("x"), :multiply, AST.integer(2))
+          )
+        ])
+
+      scope = Scope.empty() |> Scope.bind("double", Value.function(double_pattern, Scope.empty()))
+      result = Evaluator.eval(ast_node, scope)
+
+      assert {:error, "Undefined variable: 'undefined_var'"} = result
+    end
+
+    test "returns error when right operand is not a function" do
+      # 5 |> 10 (should fail - 10 is not a function)
+      ast_node = AST.binary_op(AST.integer(5), :pipe_operator, AST.integer(10))
+
+      scope = Scope.empty()
+      result = Evaluator.eval(ast_node, scope)
+
+      assert {:error, _reason} = result
+    end
+
+    test "returns error when function pattern doesn't match" do
+      # "hello" |> numeric_only where numeric_only only accepts integers
+      ast_node = AST.binary_op(AST.text("hello"), :pipe_operator, AST.identifier("numeric_only"))
+
+      numeric_pattern =
+        AST.pattern_match_expression([
+          AST.pattern_clause(AST.integer(42), AST.integer(1))
+        ])
+
+      numeric_func = Value.function(numeric_pattern, Scope.empty())
+
+      scope = Scope.empty() |> Scope.bind("numeric_only", numeric_func)
+      result = Evaluator.eval(ast_node, scope)
+
+      assert {:error, _reason} = result
+    end
+  end
+
   describe "binary operations" do
     test "evaluates integer addition" do
       # 1 + 2

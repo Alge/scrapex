@@ -1,0 +1,1 @@
+5 |> double |> add_one; double= x -> x * 2; add_one = x -> x + 1
