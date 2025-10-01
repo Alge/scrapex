@@ -1,247 +1,213 @@
-defmodule Scrapex.Lexer do
+defmodule LexerTest do
+  use ExUnit.Case
+
   alias Scrapex.Token
-  require Logger
+  alias Scrapex.Lexer
 
-  defp token_patterns do
-    [
-      # # Comments (should be early to avoid conflicts)
-      {:comment, ~r/^--.*/},
+  test "empty input returns EOF" do
+    expected = [Token.new(:eof, 1, 1)]
+    assert Lexer.tokenize("") == expected
+  end
 
-      # Identifiers needs to be very high up in prio order due to wierd rules
-      # Identifier Rules:
-      # Allowed: letters (a-z, A-Z), digits (0-9), underscore (_), dash (-), forward slash (/)
-      # Cannot start with: dash (-abc) or slash (/abc)
-      # Cannot be only: single underscore (_) or digits only (123)
-      # Cannot end with: slash (abc/)
-      # Cannot contain: double slashes (abc//def)
-      # Valid: Hello, 3d, _var, abc-123, my_var, 3_, connie2036/echo, bytes/to-utf8-text
-      # Invalid: _, 123, 1.0, -abc, *var, abc/, /abc, abc//def
-      {:identifier,
-       ~r/^(?!(?:_|[0-9]+|-)(?![a-zA-Z0-9_-]))[a-zA-Z0-9_][a-zA-Z0-9_-]*(?:\/[a-zA-Z0-9_][a-zA-Z0-9_-]*)*(?<!\/)/},
+  test "comment should extend to end of line" do
+    expected = [Token.new(:eof, 1, 23)]
+    assert Lexer.tokenize("  -- This is a comment") == expected
+  end
 
-      # # Multi-character operators (longer first)
-      {:double_plus, ~r/^\+\+/},
-      {:append, ~r/^\+</},
-      {:cons, ~r/^\>\+/},
-      {:right_arrow, ~r/^->/},
-      {:double_arrow, ~r/^=>/},
-      {:double_colon, ~r/^::/},
-      {:double_dot, ~r/^\.\./},
-      {:pipe_forward, ~r/^>>/},
-      {:pipe_operator, ~r/^\|\>/},
-      {:rock, ~r/^\$\$/},
-      {:double_equals, ~r/^==/},
-      {:not_equals, ~r/^!=/},
+  test "comment should not pick up new line" do
+    expected = [Token.new(:eof, 2, 1)]
+    assert Lexer.tokenize("-- This is a comment with newline after\n") == expected
+  end
 
-      # # Literals (longer/more specific first)
-      # Note: Both :text and :interpolated_text now handled by custom parser
-      {:base64, ~r/^~~[A-Za-z0-9+\/]*={0,2}/},
-      {:hexbyte, ~r/^~[0-9a-fA-F]{1,2}/},
-      {:float, ~r/^\d+\.\d+/},
-      {:integer, ~r/^\d+/},
+  test "Whitespace is ignored" do
+    expected = [Token.new(:eof, 2, 6)]
+    assert Lexer.tokenize("   \t \r\n    \t") == expected
+  end
 
-      # # Single character operators
-      {:pipe, ~r/^\|/},
-      {:hashtag, ~r/^#/},
-      {:semicolon, ~r/^;/},
-      {:colon, ~r/^:/},
-      {:equals, ~r/^=/},
-      {:plus, ~r/^\+/},
-      {:minus, ~r/^-/},
-      {:slash, ~r/^\//},
-      {:multiply, ~r/^\*/},
-      {:greater_than, ~r/^>/},
-      {:less_than, ~r/^</},
-      {:left_paren, ~r/^\(/},
-      {:right_paren, ~r/^\)/},
-      {:left_brace, ~r/^\{/},
-      {:right_brace, ~r/^\}/},
-      {:left_bracket, ~r/^\[/},
-      {:right_bracket, ~r/^\]/},
-      {:dot, ~r/^\./},
-      {:comma, ~r/^,/},
-      {:underscore, ~r/^_/},
-      {:exclamation_mark, ~r/^!/},
-      {:at, ~r/^@/},
-
-      # Whitespace (handle last). These are not emitted but the lexer, but we
-      # need to keep track of them to track lines/columns correctly!
-      {:newline, ~r/^\r?\n/},
-      {:whitespace, ~r/^[^\S\r\n]+/}
+  test "dots are not part of identifiers" do
+    expected = [
+      Token.new(:identifier, "a", 1, 1),
+      Token.new(:dot, 1, 2),
+      Token.new(:identifier, "b", 1, 3),
+      Token.new(:eof, 1, 4)
     ]
+
+    assert Lexer.tokenize("a.b") == expected
   end
 
-  @spec tokenize(String.t()) :: list(Token.t())
-  def tokenize(input) do
-    scan_tokens(input, [], 1, 1)
-    |> Enum.reverse()
-  end
-
-  # End of input
-  defp scan_tokens("", tokens, line, col) do
-    [Token.new(:eof, line, col) | tokens]
-  end
-
-  defp scan_tokens(<<"\"", _rest::binary>> = input, tokens, line, col) do
-    # Handle quoted strings (both text and interpolated_text)
-    case parse_quoted_string(input) do
-      {:ok, type, content, consumed_length} ->
-        token = Token.new(type, content, line, col)
-        rest = String.slice(input, consumed_length..-1//1)
-        scan_tokens(rest, [token | tokens], line, col + consumed_length)
-
-      :no_match ->
-        handle_unexpected_character(input, line, col)
+  test "Invalid character raises error" do
+    assert_raise RuntimeError, "Unexpected character '&' at line 1, column 1", fn ->
+      Lexer.tokenize("&")
     end
   end
 
-  defp scan_tokens(input, tokens, line, col) do
-    # Fall back to regular pattern matching for non-quoted strings
-    case match_next_token(input) do
-      {:ok, type, value, consumed_length} ->
-        process_token(type, value, input, tokens, line, col, consumed_length)
+  test "correct line numbers on tokens split across multiple lines" do
+    expected = [
+      Token.new(:plus, 1, 1),
+      Token.new(:plus, 2, 1),
+      Token.new(:eof, 2, 2)
+    ]
 
-      :no_match ->
-        handle_unexpected_character(input, line, col)
+    assert Lexer.tokenize("+\n+") == expected
+  end
+
+  @combined_values_cases [
+    # Integers
+    {"1", :integer, 1},
+    {"1 ", :integer, 1},
+    {"123", :integer, 123},
+    {"0", :integer, 0},
+
+    # Floats
+    {"1.0", :float, 1.0},
+    {"1.0 ", :float, 1.0},
+    {"0.0", :float, 0.0},
+    {"12312313.12321312", :float, 12_312_313.12321312},
+
+    # Text
+    {"\"\"", :text, ""},
+    {"\"a\"", :text, "a"},
+    {"\"hello\"", :text, "hello"},
+    {"\"This is text!\"", :text, "This is text!"},
+    {"\"Text can contain wierd characters, !-0123+*/%&\"", :text,
+     "Text can contain wierd characters, !-0123+*/%&"},
+    {"\"1234\"", :text, "1234"},
+
+    # Interpolated text:
+    {~s("hello` "🐸" `frog"), :interpolated_text, ~s(hello` "🐸" `frog)},
+    # {"\"hello` \"🐸\" `frog\"", :interpolated_text, "hello` \"🐸\" `frog"},
+
+    # Base64 tokens
+    {"~~SGVsbG8gdGhlcmUh=", :base64, "SGVsbG8gdGhlcmUh="},
+    # Short string with double '==' padding
+    {"~~TQ==", :base64, "TQ=="},
+
+    # String with no padding required
+    {"~~TWFu", :base64, "TWFu"},
+
+    # String containing the special '+' and '/' characters
+    {"~~+/+", :base64, "+/+"},
+
+    # A longer, complex string mixing cases, numbers, and symbols
+    {"~~RWxpeGlyL1Bob2VuaXgrT1RQIHJvY2tzIQ==", :base64, "RWxpeGlyL1Bob2VuaXgrT1RQIHJvY2tzIQ=="},
+
+    # Edge Case - An empty Base64 string (just the prefix)
+    {"~~", :base64, ""},
+
+    # String composed only of numbers
+    {"~~MTIzNDU2", :base64, "MTIzNDU2"},
+
+    # Another padding example to be sure
+    {"~~bGlnaHQgd29yaw==", :base64, "bGlnaHQgd29yaw=="},
+
+    ### HEX bytes
+    {"~FF", :hexbyte, "FF"},
+    {"~0F", :hexbyte, "0F"},
+    {"~F0", :hexbyte, "F0"},
+    {"~AB", :hexbyte, "AB"},
+    {"~9C", :hexbyte, "9C"},
+
+    # Same but lower case
+    {"~ff", :hexbyte, "FF"},
+    {"~0f", :hexbyte, "0F"},
+    {"~f0", :hexbyte, "F0"},
+    {"~ab", :hexbyte, "AB"},
+    {"~9c", :hexbyte, "9C"},
+
+    # Only zeroes
+    {"~00", :hexbyte, "00"},
+    {"~0", :hexbyte, "0"},
+
+    ### Identifiers
+    {"Hello", :identifier, "Hello"},
+    {"hello", :identifier, "hello"},
+    {"x-y", :identifier, "x-y"},
+    {"a", :identifier, "a"},
+    {"_asd", :identifier, "_asd"},
+    {"3d", :identifier, "3d"},
+    {"3_", :identifier, "3_"},
+    {"3-", :identifier, "3-"},
+    {"3d__", :identifier, "3d__"},
+    {"3__d--", :identifier, "3__d--"},
+    {"abc-123", :identifier, "abc-123"},
+    {"123-abc", :identifier, "123-abc"},
+    # Namespaced identifiers
+    {"connie2036/echo", :identifier, "connie2036/echo"},
+    {"bytes/to-utf8-text", :identifier, "bytes/to-utf8-text"},
+    {"list/first", :identifier, "list/first"},
+    {"org/project/module", :identifier, "org/project/module"}
+  ]
+
+  for {input, expected_type, expected_value} <- @combined_values_cases do
+    test "Tokenize combined value: #{input} #{inspect(expected_type)}" do
+      expected = [
+        Token.new(unquote(expected_type), unquote(expected_value), 1, 1),
+        Token.new(:eof, 1, String.length(unquote(input)) + 1)
+      ]
+
+      assert Lexer.tokenize(unquote(input)) == expected
     end
   end
 
-  # Extract error handling to reduce duplication
-  defp handle_unexpected_character(input, line, col) do
-    char = String.first(input)
-    Logger.error("Unexpected character '#{char}' at line #{line}, column #{col}")
-    raise "Unexpected character '#{char}' at line #{line}, column #{col}"
-  end
+  @tokanize_single_char_operator_cases [
+    {"+", :plus},
+    {"(", :left_paren},
+    {")", :right_paren},
+    {"-", :minus},
+    {"*", :multiply},
+    {"|", :pipe},
+    {";", :semicolon},
+    {":", :colon},
+    {"=", :equals},
+    {"#", :hashtag},
+    {"<", :less_than},
+    {">", :greater_than},
+    {"{", :left_brace},
+    {"}", :right_brace},
+    {"[", :left_bracket},
+    {"]", :right_bracket},
+    {".", :dot},
+    {",", :comma},
+    {"_", :underscore},
+    {"!", :exclamation_mark},
+    {"@", :at},
+    {"/", :slash}
+  ]
 
-  # Parse a quoted string and return type, content, and length
-  defp parse_quoted_string(<<"\"", rest::binary>>) do
-    case parse_string_content(rest, 1, false, "\"") do
-      {:ok, full_content, length} ->
-        # Extract inner content (remove surrounding quotes)
-        inner_content = String.slice(full_content, 1..-2//1)
+  for {input, expected_type} <- @tokanize_single_char_operator_cases do
+    test "tokenizes single character operators #{input}, #{inspect(expected_type)}" do
+      expected = [
+        Token.new(unquote(expected_type), 1, 1),
+        Token.new(:eof, 1, 2)
+      ]
 
-        # Determine type based on backtick presence
-        type = if String.contains?(full_content, "`"), do: :interpolated_text, else: :text
-
-        {:ok, type, inner_content, length}
-
-      :no_match ->
-        :no_match
+      assert Lexer.tokenize(unquote(input)) == expected
     end
   end
 
-  defp parse_quoted_string(_), do: :no_match
+  @tokenize_multi_char_operator_cases [
+    {"++", :double_plus},
+    {"+<", :append},
+    {">+", :cons},
+    {"->", :right_arrow},
+    {"=>", :double_arrow},
+    {"::", :double_colon},
+    {"..", :double_dot},
+    {"$$", :rock},
+    {"|>", :pipe_operator},
+    {"==", :double_equals},
+    {"!=", :not_equals},
+    {">>", :pipe_forward}
+  ]
+  for {input, expected_type} <- @tokenize_multi_char_operator_cases do
+    test "tokenizes multi character operators #{input}, #{inspect(expected_type)}" do
+      expected = [
+        Token.new(unquote(expected_type), 1, 1),
+        Token.new(:eof, 1, String.length(unquote(input)) + 1)
+      ]
 
-  # Helper function that does the actual parsing
-  # Base case: reached end of input without closing quote
-  defp parse_string_content("", _pos, _in_backtick, _acc) do
-    :no_match
-  end
-
-  # Found closing quote and not inside backticks
-  defp parse_string_content(<<"\"", rest::binary>>, pos, false, acc) do
-    final_content = acc <> "\""
-    {:ok, final_content, pos + 1}
-  end
-
-  # Found opening backtick (start interpolation)
-  defp parse_string_content(<<"`", rest::binary>>, pos, false, acc) do
-    parse_string_content(rest, pos + 1, true, acc <> "`")
-  end
-
-  # Found closing backtick (end interpolation)
-  defp parse_string_content(<<"`", rest::binary>>, pos, true, acc) do
-    parse_string_content(rest, pos + 1, false, acc <> "`")
-  end
-
-  # Found quote inside backticks - start nested parsing
-  defp parse_string_content(<<"\"", _rest::binary>> = input, pos, true, acc) do
-    # Recursively parse the nested quoted string - we need the raw parsing function
-    case parse_string_content(String.slice(input, 1..-1//1), 1, false, "\"") do
-      {:ok, nested_content, nested_length} ->
-        # Continue parsing after the nested string
-        # +1 for the opening quote we sliced off
-        total_length = nested_length + 1
-        remaining_input = String.slice(input, total_length..-1//1)
-        new_acc = acc <> nested_content
-        parse_string_content(remaining_input, pos + total_length, true, new_acc)
-
-      :no_match ->
-        :no_match
+      assert Lexer.tokenize(unquote(input)) == expected
     end
   end
 
-  # Found escaped character
-  defp parse_string_content(<<"\\", char, rest::binary>>, pos, in_backtick, acc) do
-    parse_string_content(rest, pos + 2, in_backtick, acc <> "\\" <> <<char>>)
-  end
-
-  # Regular character
-  defp parse_string_content(<<char, rest::binary>>, pos, in_backtick, acc) do
-    parse_string_content(rest, pos + 1, in_backtick, acc <> <<char>>)
-  end
-
-  defp match_next_token(input) do
-    # Try each pattern until one matches - now using the function instead of module attribute
-    Enum.find_value(token_patterns(), :no_match, fn {type, pattern} ->
-      case Regex.run(pattern, input) do
-        [match] -> {:ok, type, match, String.length(match)}
-        nil -> nil
-      end
-    end)
-  end
-
-  defp process_token(type, _value, input, tokens, line, col, length)
-       when type in [:whitespace, :comment] do
-    # Don't add this to the token list, but add the length to the column for tracking
-    rest = String.slice(input, length..-1//1)
-    scan_tokens(rest, tokens, line, col + length)
-  end
-
-  defp process_token(:newline, _value, input, tokens, line, _col, length) do
-    # Don't add this to the token list, but increment the line count and reset the column count
-    rest = String.slice(input, length..-1//1)
-    scan_tokens(rest, tokens, line + 1, 1)
-  end
-
-  defp process_token(:integer, value, input, tokens, line, col, length) do
-    token = Token.new(:integer, String.to_integer(value), line, col)
-    rest = String.slice(input, length..-1//1)
-    scan_tokens(rest, [token | tokens], line, col + length)
-  end
-
-  defp process_token(:float, value, input, tokens, line, col, length) do
-    token = Token.new(:float, String.to_float(value), line, col)
-    rest = String.slice(input, length..-1//1)
-    scan_tokens(rest, [token | tokens], line, col + length)
-  end
-
-  defp process_token(:hexbyte, value, input, tokens, line, col, length) do
-    # Trim the leading "~" from the value.
-    <<"~", content::binary>> = value
-    token = Token.new(:hexbyte, String.upcase(content), line, col)
-    rest = String.slice(input, length..-1//1)
-    scan_tokens(rest, [token | tokens], line, col + length)
-  end
-
-  defp process_token(:base64, value, input, tokens, line, col, length) do
-    # Trim the leading "~~" from the value.
-    <<"~~", content::binary>> = value
-
-    token = Token.new(:base64, content, line, col)
-    rest = String.slice(input, length..-1//1)
-    scan_tokens(rest, [token | tokens], line, col + length)
-  end
-
-  defp process_token(:identifier, value, input, tokens, line, col, length) do
-    token = Token.new(:identifier, value, line, col)
-    rest = String.slice(input, length..-1//1)
-    scan_tokens(rest, [token | tokens], line, col + length)
-  end
-
-  defp process_token(type, _value, input, tokens, line, col, length) do
-    token = Token.new(type, line, col)
-    rest = String.slice(input, length..-1//1)
-    scan_tokens(rest, [token | tokens], line, col + length)
-  end
 end

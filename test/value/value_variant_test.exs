@@ -5,7 +5,7 @@ defmodule Scrapex.Value.VariantTest do
 
   describe "variant values" do
     test "create variant value without payload" do
-      assert Value.variant("true") == {:variant, "true", nil}
+      assert Value.variant("true") == {:variant, "true", {:hole}}
     end
 
     test "create variant value with a payload" do

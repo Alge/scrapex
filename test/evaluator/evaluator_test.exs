@@ -1354,4 +1354,35 @@ defmodule Scrapex.EvaluatorTest do
       assert result == {:ok, Value.integer(15)}
     end
   end
+
+  test "evaluates a variant with a payload that requires evaluation" do
+    # AST for: #some (10 * 2)
+    payload_expression = AST.binary_op(AST.integer(10), :multiply, AST.integer(2))
+    ast_node = AST.variant("some", payload_expression)
+
+    # The evaluator should first calculate 10 * 2 -> 20, then create the variant.
+    result = Evaluator.eval(ast_node)
+
+    # The final runtime value should contain the *result* of the payload evaluation.
+    expected_payload_value = Value.integer(20)
+    expected_variant_value = Value.variant("some", expected_payload_value)
+
+    assert result == {:ok, expected_variant_value}
+  end
+
+  test "evaluates simple where clause" do
+    # x ; x : integer = 42
+    ast_node =
+      AST.where(
+        # body: x
+        AST.identifier("x"),
+        # binding: x = 42
+        AST.typed_binding("x", AST.identifier("integer"), AST.integer(42))
+      )
+
+    scope = Scope.empty()
+    result = Evaluator.eval(ast_node, scope)
+
+    assert result == {:ok, Value.integer(42)}
+  end
 end

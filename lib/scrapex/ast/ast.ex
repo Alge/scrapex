@@ -44,13 +44,17 @@ defmodule Scrapex.AST do
   defdelegate text_pattern(text, rest_pattern), to: Pattern
 
   # === TYPE CONSTRUCTORS ===
-  defdelegate variant(name), to: Type
-  defdelegate variant(name, payload), to: Type
+
+  defdelegate variant_def(name), to: Type, as: :variant_def
+  defdelegate variant_def(name, payload), to: Type, as: :variant_def
   defdelegate type_union(variants), to: Type
   defdelegate variant_literal(identifier), to: Type
   defdelegate function_type(from, to), to: Type
   defdelegate record_type(fields), to: Type
   defdelegate type_annotation(expression, type), to: Type
+
+  defdelegate generic_type_declaration(name, params, body), to: Type
+  defdelegate type_construction(type_name, variant_name, arguments), to: Type
 
   # === EXPRESSION CONSTRUCTORS ===
   defdelegate unary_op(operator, operand), to: Expression
@@ -63,7 +67,8 @@ defmodule Scrapex.AST do
   defdelegate function_app(identifier, argumente), to: Expression
   defdelegate type_declaration(name, variants), to: Expression
   defdelegate field_access(source, field_name), to: Expression
-  defdelegate variant_constructor(type, variant), to: Expression
+  defdelegate variant(tag, payload), to: Expression
+  defdelegate variant(tag), to: Expression
   defdelegate where(body, bindings), to: Expression
   defdelegate function_expression(pattern_match_expr, closure), to: Expression
 

@@ -20,7 +20,7 @@ defimpl Scrapex.Display, for: Tuple do
   def to_string({:function, name, _, _}), do: "<function #{name}>"
   def to_string({:record, fields}), do: display_record(fields)
   def to_string({:list, elements}), do: display_list(elements)
-  def to_string({:variant, name, nil}), do: "##{name}"
+  def to_string({:variant, name, {:hole}}), do: "##{name}"
   def to_string({:hole}), do: "()"
 
   def to_string({:hexbyte, value}) do

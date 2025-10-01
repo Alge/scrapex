@@ -1,0 +1,24 @@
+process-transaction my-payment
+
+; my-payment : payment = #exact-change 4
+--; my-payment : payment = #credit-card
+--; my-payment : payment = #check
+
+
+; process-transaction : result =
+  | #exact-change 5 -> #ok #chips
+  | #exact-change 3 -> #ok #soda
+ -- | #exact-change _ -> #err "No product with that price"
+  | #credit-card -> #err "Credit card reader is broken."
+  | _ -> #err "Invalid payment method."
+
+
+; payment :
+  #exact-change integer| #credit-card
+
+; item :
+  #chips | #soda
+
+; result : value =>
+  #ok value | #err text
+

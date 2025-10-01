@@ -7,6 +7,7 @@ defmodule Scrapex.AST.Expression do
   """
 
   alias Scrapex.AST.{Literal, Identifier, Pattern, Type, Record, Binding}
+  alias Scrapex.AST
 
   # =============================================================================
   # TYPESPECS
@@ -34,7 +35,8 @@ defmodule Scrapex.AST.Expression do
 
   @type field_access :: {:field_access, source :: t(), field :: Identifier.t()}
 
-  @type variant_constructor :: {:variant_constructor, type :: t(), variant :: t()}
+  @typedoc "Represents a constructed variant value, e.g., #ok 42 or #true"
+  @type variant :: {:variant, tag :: String.t(), payload :: t()}
 
   @type where :: {:where, body :: t(), binding :: t()}
 
@@ -61,10 +63,10 @@ defmodule Scrapex.AST.Expression do
           | function_app()
           | type_declaration()
           | field_access()
-          | variant_constructor()
           | where()
           | Binding.t()
           | function_expression()
+          | variant()
 
   # =============================================================================
   # CONSTRUCTORS
@@ -82,7 +84,8 @@ defmodule Scrapex.AST.Expression do
   def field_access(source, field_name) when is_binary(field_name),
     do: {:field_access, source, field_name}
 
-  def variant_constructor(type, variant), do: {:variant_constructor, type, variant}
+  def variant(tag, payload), do: {:variant, tag, payload}
+  def variant(tag), do: {:variant, tag, AST.hole()}
   def where(body, binding), do: {:where, body, binding}
   def function_expression(patter_match_expr, closure), do: {:function, patter_match_expr, closure}
 end

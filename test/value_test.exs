@@ -110,7 +110,7 @@ defmodule Scrapex.ValueTest do
   describe "Variant values" do
     test "create variant value without payload" do
       # A variant without a payload is represented internally with a nil payload
-      assert Value.variant("true") == {:variant, "true", nil}
+      assert Value.variant("true") == {:variant, "true", {:hole}}
     end
 
     test "create variant value with a payload" do

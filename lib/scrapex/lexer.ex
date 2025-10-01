@@ -4,10 +4,10 @@ defmodule Scrapex.Lexer do
 
   defp token_patterns do
     [
-      # # Comments (should be early to avoid conflicts)
+      # Comments (should be early to avoid conflicts)
       {:comment, ~r/^--.*/},
 
-      # Identifiers needs to be very high up in prio order due to wierd rules
+      # Identifiers needs to be very high up in prio order due to weird rules
       # Identifier Rules:
       # Allowed: letters (a-z, A-Z), digits (0-9), underscore (_), dash (-), forward slash (/)
       # Cannot start with: dash (-abc) or slash (/abc)
@@ -19,7 +19,7 @@ defmodule Scrapex.Lexer do
       {:identifier,
        ~r/^(?!(?:_|[0-9]+|-)(?![a-zA-Z0-9_-]))[a-zA-Z0-9_][a-zA-Z0-9_-]*(?:\/[a-zA-Z0-9_][a-zA-Z0-9_-]*)*(?<!\/)/},
 
-      # # Multi-character operators (longer first)
+      # Multi-character operators (longer first)
       {:double_plus, ~r/^\+\+/},
       {:append, ~r/^\+</},
       {:cons, ~r/^\>\+/},
@@ -33,14 +33,14 @@ defmodule Scrapex.Lexer do
       {:double_equals, ~r/^==/},
       {:not_equals, ~r/^!=/},
 
-      # # Literals (longer/more specific first)
+      # Literals (longer/more specific first)
       # Note: Both :text and :interpolated_text now handled by custom parser
       {:base64, ~r/^~~[A-Za-z0-9+\/]*={0,2}/},
       {:hexbyte, ~r/^~[0-9a-fA-F]{1,2}/},
       {:float, ~r/^\d+\.\d+/},
       {:integer, ~r/^\d+/},
 
-      # # Single character operators
+      # Single character operators
       {:pipe, ~r/^\|/},
       {:hashtag, ~r/^#/},
       {:semicolon, ~r/^;/},
@@ -82,37 +82,43 @@ defmodule Scrapex.Lexer do
     [Token.new(:eof, line, col) | tokens]
   end
 
-  defp scan_tokens(input, tokens, line, col) do
-    # Check for any quoted string first (both text and interpolated_text)
-    case try_parse_quoted_string(input) do
+  defp scan_tokens(<<"\"", _rest::binary>> = input, tokens, line, col) do
+    # Handle quoted strings (both text and interpolated_text)
+    case parse_quoted_string(input) do
       {:ok, type, content, consumed_length} ->
         token = Token.new(type, content, line, col)
         rest = String.slice(input, consumed_length..-1//1)
         scan_tokens(rest, [token | tokens], line, col + consumed_length)
 
       :no_match ->
-        # Fall back to regular pattern matching
-        case match_next_token(input) do
-          {:ok, type, value, consumed_length} ->
-            process_token(type, value, input, tokens, line, col, consumed_length)
-
-          :no_match ->
-            char = String.first(input)
-            Logger.error("Unexpected character '#{char}' at line #{line}, column #{col}")
-            raise "Unexpected character '#{char}' at line #{line}, column #{col}"
-        end
+        handle_unexpected_character(input, line, col)
     end
   end
 
-  # Try to parse any quoted string (both text and interpolated_text)
-  defp try_parse_quoted_string(<<"\"", _rest::binary>> = input) do
-    case parse_quoted_string_with_interpolation(input, 0) do
-      {:ok, content, length} ->
-        # Remove surrounding quotes to get inner content
-        inner_content = String.slice(content, 1..-2//1)
+  defp scan_tokens(input, tokens, line, col) do
+    # Fall back to regular pattern matching for non-quoted strings
+    case match_next_token(input) do
+      {:ok, type, value, consumed_length} ->
+        process_token(type, value, input, tokens, line, col, consumed_length)
 
-        # Determine type based on whether it contains interpolation (backticks)
-        type = if String.contains?(content, "`"), do: :interpolated_text, else: :text
+      :no_match ->
+        handle_unexpected_character(input, line, col)
+    end
+  end
+
+  # Extract error handling to reduce duplication
+  defp handle_unexpected_character(input, line, col) do
+    char = String.first(input)
+    Logger.error("Unexpected character '#{char}' at line #{line}, column #{col}")
+    raise "Unexpected character '#{char}' at line #{line}, column #{col}"
+  end
+
+  # Parse a quoted string and return type, content, and length
+  defp parse_quoted_string(<<"\"", rest::binary>>) do
+    case parse_string_content(rest, 1, false, "") do
+      {:ok, inner_content, length} ->
+        # Determine type based on backtick presence
+        type = if String.contains?(inner_content, "`"), do: :interpolated_text, else: :text
 
         {:ok, type, inner_content, length}
 
@@ -121,61 +127,64 @@ defmodule Scrapex.Lexer do
     end
   end
 
-  defp try_parse_quoted_string(_input), do: :no_match
-
-  # Parse a quoted string that may contain nested interpolation
-  defp parse_quoted_string_with_interpolation(<<"\"", rest::binary>>, start_pos) do
-    # Start parsing after the opening quote
-    parse_quoted_string_helper(rest, 1, false, "\"")
-  end
-
-  defp parse_quoted_string_with_interpolation(_, _), do: :no_match
-
+  defp parse_quoted_string(_), do: :no_match
   # Helper function that does the actual parsing
   # Base case: reached end of input without closing quote
-  defp parse_quoted_string_helper("", _pos, _in_backtick, _acc) do
+  defp parse_string_content("", _pos, _in_backtick, _acc) do
     :no_match
   end
 
-  # Found closing quote and not inside backticks
-  defp parse_quoted_string_helper(<<"\"", rest::binary>>, pos, false, acc) do
-    final_content = acc <> "\""
-    {:ok, final_content, pos + 1}
-  end
+  # Main recursive helper
+  defp parse_string_content(input, pos, in_backtick, acc) do
+    # Use cond and String.starts_with? for clarity and correctness
+    cond do
+      # Found closing quote and not inside backticks
+      not in_backtick and String.starts_with?(input, "\"") ->
+        {:ok, acc, pos + 1}
 
-  # Found opening backtick (start interpolation)
-  defp parse_quoted_string_helper(<<"`", rest::binary>>, pos, false, acc) do
-    parse_quoted_string_helper(rest, pos + 1, true, acc <> "`")
-  end
+      # Found quote inside backticks - just treat it as a regular character
+      in_backtick and String.starts_with?(input, "\"") ->
+        parse_next_grapheme(input, pos, in_backtick, acc, "\"")
 
-  # Found closing backtick (end interpolation)
-  defp parse_quoted_string_helper(<<"`", rest::binary>>, pos, true, acc) do
-    parse_quoted_string_helper(rest, pos + 1, false, acc <> "`")
-  end
+      # Found opening backtick (start interpolation)
+      not in_backtick and String.starts_with?(input, "`") ->
+        parse_next_grapheme(input, pos, true, acc, "`")
 
-  # Found quote inside backticks - start nested parsing
-  defp parse_quoted_string_helper(<<"\"", _rest::binary>> = input, pos, true, acc) do
-    # Recursively parse the nested quoted string
-    case parse_quoted_string_with_interpolation(input, pos) do
-      {:ok, nested_content, nested_length} ->
-        # Continue parsing after the nested string
-        remaining_input = String.slice(input, nested_length..-1//1)
-        new_acc = acc <> nested_content
-        parse_quoted_string_helper(remaining_input, pos + nested_length, true, new_acc)
+      # Found closing backtick (end interpolation)
+      in_backtick and String.starts_with?(input, "`") ->
+        parse_next_grapheme(input, pos, false, acc, "`")
 
-      :no_match ->
-        :no_match
+      # Found escaped character
+      String.starts_with?(input, "\\") ->
+        # Get the character after the backslash
+        case String.at(input, 1) do
+          nil ->
+            # End of string after a backslash, invalid
+            :no_match
+
+          escaped_char ->
+            # Consume 2 characters ("\"" + the char) from input string
+            rest = String.slice(input, 2..-1//-1)
+            # Add the original sequence to the accumulator
+            parse_string_content(rest, pos + 2, in_backtick, acc <> "\\" <> escaped_char)
+        end
+
+      # Regular character
+      true ->
+        parse_next_grapheme(input, pos, in_backtick, acc)
     end
   end
 
-  # Found escaped character
-  defp parse_quoted_string_helper(<<"\\", char, rest::binary>>, pos, in_backtick, acc) do
-    parse_quoted_string_helper(rest, pos + 2, in_backtick, acc <> "\\" <> <<char>>)
-  end
+  # Helper to advance by one grapheme
+  defp parse_next_grapheme(input, pos, in_backtick, acc, grapheme \\ nil) do
+    # If a specific grapheme is passed, we use it, otherwise get the next one
+    {grapheme, rest} =
+      if grapheme,
+        do: {grapheme, String.slice(input, String.length(grapheme)..-1//1)},
+        # do: {grapheme, String.slice(input, String.length(grapheme)..-1)},
+        else: String.next_grapheme(input)
 
-  # Regular character
-  defp parse_quoted_string_helper(<<char, rest::binary>>, pos, in_backtick, acc) do
-    parse_quoted_string_helper(rest, pos + 1, in_backtick, acc <> <<char>>)
+    parse_string_content(rest, pos + 1, in_backtick, acc <> grapheme)
   end
 
   defp match_next_token(input) do
@@ -213,9 +222,6 @@ defmodule Scrapex.Lexer do
     scan_tokens(rest, [token | tokens], line, col + length)
   end
 
-  # Note: :text and :interpolated_text are now handled by custom parser,
-  # not through this process_token function
-
   defp process_token(:hexbyte, value, input, tokens, line, col, length) do
     # Trim the leading "~" from the value.
     <<"~", content::binary>> = value
@@ -227,7 +233,6 @@ defmodule Scrapex.Lexer do
   defp process_token(:base64, value, input, tokens, line, col, length) do
     # Trim the leading "~~" from the value.
     <<"~~", content::binary>> = value
-
     token = Token.new(:base64, content, line, col)
     rest = String.slice(input, length..-1//1)
     scan_tokens(rest, [token | tokens], line, col + length)

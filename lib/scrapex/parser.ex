@@ -2,6 +2,7 @@
 require Logger
 
 defmodule Scrapex.Parser do
+  alias Scrapex.PrettyPrinter
   alias Scrapex.{AST, Token, Lexer}
 
   @doc """
@@ -9,7 +10,7 @@ defmodule Scrapex.Parser do
   Parses a list of tokens into a single expression AST.
   """
   def parse(token_list) when is_list(token_list) do
-    Logger.debug("Parser starting. Input tokens: #{inspect(token_list, pretty: true)}")
+    Logger.debug("Parser starting. Input tokens:\n#{PrettyPrinter.format(token_list)}")
     # Handle the edge case of empty or effectively empty input.
     if token_list == [] or hd(token_list).type == :eof do
       {:error, "Empty input"}
@@ -60,27 +61,47 @@ defmodule Scrapex.Parser do
         next_token.type == :colon and next_precedence > precedence_context ->
           rest_after_colon = tl(token_list)
 
-          # Peek ahead to see if the RHS is a variant list (starts with '#')
-          next_is_hashtag =
-            case rest_after_colon do
-              [%Token{type: :hashtag} | _] -> true
-              _ -> false
-            end
-
-          # A type declaration must be of the form `identifier : #variant...`
-          case {left_ast, next_is_hashtag} do
-            # This is the type declaration case we want to handle
-            {{:identifier, name}, true} ->
-              case parse_type_union_as_expression(rest_after_colon) do
-                {:ok, type_union, remaining_tokens} ->
-                  type_decl = AST.type_declaration(name, type_union)
-                  parse_infix_expression(remaining_tokens, type_decl, precedence_context)
+          case {left_ast, rest_after_colon} do
+            # Generic type declaration: identifier : param => param2 => ... => type
+            {{:identifier, name},
+             [%Token{type: :identifier, value: first_param}, %Token{type: :double_arrow} | rest]} ->
+              # Collect all parameters
+              case parse_type_parameters(rest, [AST.identifier(first_param)]) do
+                {:ok, params, rest_after_params} ->
+                  case parse_type_union_as_expression(rest_after_params) do
+                    {:ok, type_expr, remaining} ->
+                      generic_decl = AST.generic_type_declaration(name, params, type_expr)
+                      parse_infix_expression(remaining, generic_decl, precedence_context)
+                  end
 
                 {:error, reason} ->
                   {:error, reason}
               end
 
-            # Fallback to the original type annotation logic for all other cases
+            # Type declaration OR annotation with hashtag
+            # Always parse #variants as types, not values
+            {_, [%Token{type: :hashtag} | _]} ->
+              case parse_type_union_as_expression(rest_after_colon) do
+                {:ok, type_union, remaining_tokens} ->
+                  case left_ast do
+                    {:identifier, name} ->
+                      # It's a type declaration
+                      type_decl = AST.type_declaration(name, type_union)
+                      parse_infix_expression(remaining_tokens, type_decl, precedence_context)
+
+                    _ ->
+                      # It's a type annotation with non-identifier left side
+                      type_annotation = AST.type_annotation(left_ast, type_union)
+
+                      parse_infix_expression(
+                        remaining_tokens,
+                        type_annotation,
+                        precedence_context
+                      )
+                  end
+              end
+
+            # Regular type annotation (no hashtag)
             _ ->
               case parse_expression(rest_after_colon, next_precedence) do
                 {:ok, type_ast, remaining_tokens} ->
@@ -90,6 +111,33 @@ defmodule Scrapex.Parser do
                 {:error, reason} ->
                   {:error, reason}
               end
+          end
+
+        next_token.type == :double_colon and next_precedence > precedence_context ->
+          rest_after_double_colon = tl(token_list)
+
+          # Left side must be an identifier (the type name)
+          case left_ast do
+            {:identifier, type_name} ->
+              # Parse the right side - should be an identifier followed by optional arguments
+              case parse_expression(rest_after_double_colon, next_precedence) do
+                {:ok, right_ast, remaining_tokens} ->
+                  # Extract variant name and arguments
+                  case extract_type_construction_parts(right_ast) do
+                    {:ok, variant_name, arguments} ->
+                      construction = AST.type_construction(type_name, variant_name, arguments)
+                      parse_infix_expression(remaining_tokens, construction, precedence_context)
+
+                    {:error, reason} ->
+                      {:error, reason}
+                  end
+
+                {:error, reason} ->
+                  {:error, reason}
+              end
+
+            _ ->
+              {:error, "Left side of :: must be a type name (identifier)"}
           end
 
         next_token.type == :dot and next_precedence > precedence_context ->
@@ -113,19 +161,6 @@ defmodule Scrapex.Parser do
           case parse_bindings(tl(token_list)) do
             {:ok, binding_ast, rest} ->
               new_left_ast = AST.where(left_ast, binding_ast)
-              parse_infix_expression(rest, new_left_ast, precedence_context)
-
-            {:error, reason} ->
-              {:error, reason}
-          end
-
-        next_token.type == :double_colon and next_precedence > precedence_context ->
-          # The precedence of `::` is 8.
-          case parse_expression(tl(token_list), next_precedence) do
-            {:ok, variant_expr, rest} ->
-              # Build the specific AST node we want.
-              new_left_ast = AST.variant_constructor(left_ast, variant_expr)
-              # Loop again to handle chained operations if ever needed.
               parse_infix_expression(rest, new_left_ast, precedence_context)
 
             {:error, reason} ->
@@ -224,38 +259,80 @@ defmodule Scrapex.Parser do
   end
 
   defp parse_typed_construct(name, rest) do
-    # Parse type expression (handles both #variants and regular types)
-    type_result =
-      case rest do
-        [%Token{type: :hashtag} | _] ->
-          parse_type_union_as_expression(rest)
-
-        _ ->
-          parse_expression(rest, get_infix_precedence(:semicolon) + 1)
-      end
-
-    case type_result do
-      {:ok, type_expr, [%Token{type: :equals} | value_rest]} ->
-        # Typed binding: x : type = value
-        case parse_expression(value_rest, get_infix_precedence(:semicolon) + 1) do
-          {:ok, value_expr, remaining} ->
-            {:ok, AST.typed_binding(name, type_expr, value_expr), remaining}
+    # Check for generic type declaration (identifier => ...)
+    case rest do
+      [%Token{type: :identifier, value: param}, %Token{type: :double_arrow} | type_rest] ->
+        # Generic type declaration: name : param => type
+        case parse_type_expression(type_rest) do
+          {:ok, type_expr, remaining} ->
+            {:ok, AST.generic_type_declaration(name, [AST.identifier(param)], type_expr),
+             remaining}
 
           error ->
             error
         end
 
-      {:ok, {:type_union, _variants} = type_union, remaining} ->
-        # Type declaration: x : #variant #variant
-        {:ok, AST.type_declaration(name, type_union), remaining}
+      _ ->
+        # Regular type expression (handles both #variants and regular types)
+        type_result =
+          case rest do
+            [%Token{type: :hashtag} | _] ->
+              parse_type_union_as_expression(rest)
 
-      {:ok, type_expr, remaining} ->
-        # Type annotation: x : typename
-        {:ok, AST.type_annotation(AST.identifier(name), type_expr), remaining}
+            _ ->
+              parse_expression(rest, get_infix_precedence(:semicolon) + 1)
+          end
 
-      error ->
-        error
+        case type_result do
+          {:ok, type_expr, [%Token{type: :equals} | value_rest]} ->
+            # Typed binding: x : type = value
+            case parse_expression(value_rest, get_infix_precedence(:semicolon) + 1) do
+              {:ok, value_expr, remaining} ->
+                {:ok, AST.typed_binding(name, type_expr, value_expr), remaining}
+
+              error ->
+                error
+            end
+
+          {:ok, {:type_union, _variants} = type_union, remaining} ->
+            # Type declaration: x : #variant #variant
+            {:ok, AST.type_declaration(name, type_union), remaining}
+
+          {:ok, type_expr, remaining} ->
+            # Type annotation: x : typename
+            {:ok, AST.type_annotation(AST.identifier(name), type_expr), remaining}
+
+          error ->
+            error
+        end
     end
+  end
+
+  # Parse chained type parameters: param1 => param2 => param3 => ...
+  defp parse_type_parameters(
+         [%Token{type: :identifier, value: param}, %Token{type: :double_arrow} | rest],
+         acc
+       ) do
+    # Found another param =>, keep collecting
+    parse_type_parameters(rest, acc ++ [AST.identifier(param)])
+  end
+
+  defp parse_type_parameters(tokens, acc) when acc != [] do
+    # No more params (next token is not identifier followed by =>)
+    {:ok, acc, tokens}
+  end
+
+  defp parse_type_parameters(_, []) do
+    {:error, "Expected at least one type parameter"}
+  end
+
+  # Add this new helper function right after parse_typed_construct
+  defp parse_type_expression([%Token{type: :hashtag} | _] = tokens) do
+    parse_type_union_as_expression(tokens)
+  end
+
+  defp parse_type_expression(tokens) do
+    parse_expression(tokens, get_infix_precedence(:semicolon) + 1)
   end
 
   # --- Extraction of type unions ---
@@ -267,31 +344,67 @@ defmodule Scrapex.Parser do
   end
 
   defp parse_type_union_as_expression(token_list) do
-    case parse_type_union(token_list, []) do
-      {:ok, variants, remaining_tokens} ->
-        type_union = AST.type_union(variants)
-        {:ok, type_union, remaining_tokens}
+    {:ok, variants, remaining_tokens} = parse_type_union(token_list, [])
+    type_union = AST.type_union(variants)
+    {:ok, type_union, remaining_tokens}
+  end
 
-      {:error, reason} ->
-        {:error, reason}
+  defp parse_variant_values(
+         [%Token{type: :hashtag}, %Token{type: :identifier, value: name} | rest],
+         _variants
+       ) do
+    # Check if there's another hashtag following (like #ok #chips)
+    case rest do
+      [%Token{type: :hashtag} | _] = remaining ->
+        # Parse the next variant as the payload
+        case parse_variant_values(remaining, []) do
+          {:ok, [payload_variant], final_remaining} ->
+            variant = AST.variant(name, payload_variant)
+            {:ok, [variant], final_remaining}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+
+      _ ->
+        # Try regular payload parsing
+        case try_parse_variant_payload(rest) do
+          {:ok, expression, remaining} ->
+            variant = AST.variant(name, expression)
+            {:ok, [variant], remaining}
+
+          {:no_payload, remaining} ->
+            variant = AST.variant(name)
+            {:ok, [variant], remaining}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
     end
   end
 
-  defp parse_type_union([first_token | [second_token | rest]], variants)
-       when first_token.type == :hashtag and second_token.type == :identifier do
-    name = second_token.value
+  defp parse_variant_values(token_list, variants) do
+    {:ok, Enum.reverse(variants), token_list}
+  end
 
+  defp parse_type_union([%Token{type: :pipe} | rest], variants) do
+    # Skip pipe and continue parsing variants
+    parse_type_union(rest, variants)
+  end
+
+  defp parse_type_union(
+         [%Token{type: :hashtag}, %Token{type: :identifier, value: name} | rest],
+         variants
+       ) do
     case try_parse_variant_payload(rest) do
       {:ok, expression, remaining} ->
-        variant = AST.variant(name, expression)
+        Logger.debug("Remaining after parsing variant payload: #{inspect(remaining)}")
+        variant = AST.variant_def(name, expression)
         parse_type_union(remaining, [variant | variants])
 
       {:no_payload, remaining} ->
-        variant = AST.variant(name, AST.hole())
+        variant = AST.variant_def(name, AST.hole())
         parse_type_union(remaining, [variant | variants])
-
-      {:error, reason} ->
-        {:error, reason}
     end
   end
 
@@ -563,7 +676,7 @@ defmodule Scrapex.Parser do
        ) do
     case(parse_pattern(rest)) do
       {:ok, pattern, [%Token{type: :right_arrow} | remaining_tokens]} ->
-        case parse_expression(remaining_tokens, 0) do
+        case parse_expression(remaining_tokens, get_infix_precedence(:semicolon) + 1) do
           {:ok, expression, tokens_after_expression} ->
             # We need a type for this right? We don't have a "clause" pattern
             pattern_match_clause = AST.pattern_clause(pattern, expression)
@@ -690,15 +803,14 @@ defmodule Scrapex.Parser do
 
   # --- Prefix Expression Workers ---
   defp parse_prefix(:hashtag, token_list) do
-    case parse_type_union(token_list, []) do
+    case parse_variant_values(token_list, []) do
       {:ok, [single_variant], remaining_tokens} ->
         # Single variant -> return as atomic tag
         {:ok, single_variant, remaining_tokens}
 
-      {:ok, multiple_variants, remaining_tokens} ->
-        # Multiple variants -> wrap in type_union
-        type_union = AST.type_union(multiple_variants)
-        {:ok, type_union, remaining_tokens}
+      {:ok, _multiple_variants, _remaining_tokens} ->
+        # Multiple variants -> this shouldn't happen in value context
+        {:error, "Multiple variants not allowed in expression context"}
 
       {:error, reason} ->
         {:error, reason}
@@ -874,6 +986,33 @@ defmodule Scrapex.Parser do
     end
   end
 
+  # Helper to extract variant name and arguments from the parsed right side
+  defp extract_type_construction_parts({:identifier, name}) do
+    # Just identifier, no arguments: bool::true
+    {:ok, name, []}
+  end
+
+  defp extract_type_construction_parts({:function_app, _, _} = app) do
+    # Flatten nested function applications
+    case flatten_function_app(app) do
+      [{:identifier, name} | args] ->
+        {:ok, name, args}
+
+      _ ->
+        {:error, "After :: expected identifier or identifier with arguments"}
+    end
+  end
+
+  defp extract_type_construction_parts(_) do
+    {:error, "After :: expected identifier or identifier with arguments"}
+  end
+
+  defp flatten_function_app({:function_app, left, right}) do
+    flatten_function_app(left) ++ [right]
+  end
+
+  defp flatten_function_app(expr), do: [expr]
+
   # =============================================================================
   # PRECEDENCE HELPER
   # =============================================================================
@@ -884,6 +1023,7 @@ defmodule Scrapex.Parser do
   defp get_infix_precedence(%Token{type: type}) do
     case type do
       :semicolon -> 1
+      :double_colon -> 3
       :colon -> 3
       # |>
       :pipe_operator -> 4
@@ -896,7 +1036,7 @@ defmodule Scrapex.Parser do
       # ->
       :right_arrow -> 7
       # ::
-      :double_colon -> 8
+      # :double_colon -> 8
       # ++
       :double_plus -> 9
       :plus -> 10

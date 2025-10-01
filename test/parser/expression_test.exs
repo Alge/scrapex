@@ -279,4 +279,146 @@ defmodule Scrapex.Parser.ExpressionTest do
 
     assert {:ok, ^expected} = Parser.parse(input)
   end
+
+  test "parses a pattern match expression with a wildcard pattern" do
+    # Input: "my_func; my_func = | _ -> #ok"
+    input = [
+      Token.new(:identifier, "my_func", 1, 1),
+      Token.new(:semicolon, 1, 9),
+      Token.new(:identifier, "my_func", 2, 1),
+      Token.new(:equals, 2, 9),
+      Token.new(:pipe, 2, 11),
+      Token.new(:underscore, 2, 13),
+      Token.new(:right_arrow, 2, 15),
+      Token.new(:hashtag, 2, 18),
+      Token.new(:identifier, "ok", 2, 19),
+      Token.new(:eof, 2, 21)
+    ]
+
+    expected =
+      AST.where(
+        AST.identifier("my_func"),
+        AST.binding(
+          "my_func",
+          AST.pattern_match_expression([
+            AST.pattern_clause(
+              AST.wildcard(),
+              AST.variant("ok")
+            )
+          ])
+        )
+      )
+
+    assert {:ok, result} = Parser.parse(input)
+    assert result == expected
+  end
+
+  test "parses a full pattern match function in a where clause" do
+    # Input:
+    # f ; f =
+    # | #exact-change -> #ok #chips
+    # | #credit-card -> #err "Credit card reader is broken."
+    # | _ -> #err "Invalid payment method."
+    input = [
+      Token.new(:identifier, "f", 1, 1),
+      Token.new(:semicolon, 1, 3),
+      Token.new(:identifier, "f", 1, 5),
+      Token.new(:equals, 1, 7),
+      Token.new(:pipe, 2, 3),
+      Token.new(:hashtag, 2, 5),
+      Token.new(:identifier, "exact-change", 2, 6),
+      Token.new(:right_arrow, 2, 19),
+      Token.new(:hashtag, 2, 22),
+      Token.new(:identifier, "ok", 2, 23),
+      Token.new(:hashtag, 2, 26),
+      Token.new(:identifier, "chips", 2, 27),
+      Token.new(:pipe, 3, 3),
+      Token.new(:hashtag, 3, 5),
+      Token.new(:identifier, "credit-card", 3, 6),
+      Token.new(:right_arrow, 3, 18),
+      Token.new(:hashtag, 3, 21),
+      Token.new(:identifier, "err", 3, 22),
+      Token.new(:text, "Credit card reader is broken.", 3, 26),
+      Token.new(:pipe, 4, 3),
+      Token.new(:underscore, 4, 5),
+      Token.new(:right_arrow, 4, 7),
+      Token.new(:hashtag, 4, 10),
+      Token.new(:identifier, "err", 4, 11),
+      Token.new(:text, "Invalid payment method.", 4, 15),
+      Token.new(:eof, 4, 40)
+    ]
+
+    expected =
+      AST.where(
+        AST.identifier("f"),
+        AST.binding(
+          "f",
+          AST.pattern_match_expression([
+            AST.pattern_clause(
+              AST.variant_pattern(AST.identifier("exact-change"), []),
+              # FIXED: #ok #chips is a variant with a variant payload
+              AST.variant("ok", AST.variant("chips", AST.hole()))
+            ),
+            AST.pattern_clause(
+              AST.variant_pattern(AST.identifier("credit-card"), []),
+              # FIXED: #err "text" is a variant with text payload
+              AST.variant("err", AST.text("Credit card reader is broken."))
+            ),
+            AST.pattern_clause(
+              AST.wildcard(),
+              # FIXED: #err "text" is a variant with text payload
+              AST.variant("err", AST.text("Invalid payment method."))
+            )
+          ])
+        )
+      )
+
+    assert {:ok, result} = Parser.parse(input)
+    assert result == expected
+  end
+
+  test "stops parsing a clause body at a semicolon" do
+    # This code demonstrates the bug. The parser should parse `| _ -> 1`
+    # and treat the `; x = 2` as a separate, following statement.
+    # The bug causes it to parse the body as `1 ; x = 2`.
+    # Input: "main ; f = | _ -> 1 ; x = 2"
+    input = [
+      Token.new(:identifier, "main", 1, 1),
+      Token.new(:semicolon, 1, 6),
+      Token.new(:identifier, "f", 1, 8),
+      Token.new(:equals, 1, 10),
+      Token.new(:pipe, 1, 12),
+      Token.new(:underscore, 1, 14),
+      Token.new(:right_arrow, 1, 16),
+      Token.new(:integer, 1, 1, 18),
+      Token.new(:semicolon, 1, 20),
+      Token.new(:identifier, "x", 1, 22),
+      Token.new(:equals, 1, 24),
+      Token.new(:integer, 2, 1, 26),
+      Token.new(:eof, 1, 27)
+    ]
+
+    # The CORRECT AST has the `where` for `x=2` attached to the `where` for `f=...`,
+    # NOT inside the pattern clause's body.
+    expected =
+      AST.where(
+        AST.identifier("main"),
+        AST.where(
+          AST.binding(
+            "f",
+            AST.pattern_match_expression([
+              AST.pattern_clause(
+                AST.wildcard(),
+                # The body should ONLY be the integer 1.
+                AST.integer(1)
+              )
+            ])
+          ),
+          AST.binding("x", AST.integer(2))
+        )
+      )
+
+    assert {:ok, result} = Parser.parse(input)
+    assert result == expected
+  end
 end

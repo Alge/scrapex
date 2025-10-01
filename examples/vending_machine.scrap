@@ -1,0 +1,38 @@
+-- This program simulates a vending machine transaction.
+-- The goal is to process a payment and return a result,
+-- which will be a successful #ok with a #chips item.
+
+process-transaction my-payment
+
+-- DEFINE THE INPUT DATA
+-- We define the specific payment we want to process.
+-- Note the clean `#exact_change` syntax, which is sugar for `#exact_change ()`.
+; my-payment : payment = #exact-change
+
+
+-- DEFINE THE CORE LOGIC
+-- The `process-transaction` function takes a payment and decides what to do.
+-- The pattern matching syntax (`| #exact_change -> ...`) now perfectly
+-- mirrors the construction syntax.
+; process-transaction =
+  | #exact-change -> #ok #chips
+  | #credit-card -> #err "Credit card reader is broken."
+  | _ -> #err "Invalid payment method."
+
+
+-- DEFINE THE TYPES
+-- The lowest-level details are the type definitions that everything else relies on.
+
+-- A payment can be one of two simple kinds.
+; payment :
+  #exact-change | #credit-card
+
+-- An item can be one of two simple kinds.
+; item :
+  #chips | #soda
+
+-- A result is a generic type that can hold any value on success,
+-- or a text message on failure.
+; result : value =>
+  #ok value | #err text
+

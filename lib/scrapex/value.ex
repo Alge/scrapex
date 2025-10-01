@@ -20,7 +20,7 @@ defmodule Scrapex.Value do
   def list(l) when is_list(l), do: {:list, l}
   def function(expr, closure), do: {:function, nil, expr, closure}
   def function(name, expr, closure) when is_binary(name), do: {:function, name, expr, closure}
-  def variant(name) when is_binary(name), do: {:variant, name, nil}
+  def variant(name) when is_binary(name), do: {:variant, name, hole()}
   def variant(name, payload) when is_binary(name), do: {:variant, name, payload}
   def record(fields) when is_list(fields), do: {:record, fields}
   def hole(), do: {:hole}

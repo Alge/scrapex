@@ -4,7 +4,9 @@ defmodule Scrapex.Evaluator do
   """
 
   require Logger
-  alias Scrapex.{Value, Evaluator.Scope, AST}
+  alias Scrapex.AST
+  alias Scrapex.{Value, Evaluator.Scope}
+  alias Scrapex.PrettyPrinter
 
   @spec eval(term()) :: {:ok, Value.t()} | {:error, String.t()}
   def eval(ast_node) do
@@ -17,7 +19,8 @@ defmodule Scrapex.Evaluator do
   """
   @spec eval(term(), Scope.t()) :: {:ok, Value.t()} | {:error, String.t()}
   def eval(ast_node, scope) do
-    Logger.debug("Evaluating node: #{inspect(ast_node)}")
+    Logger.info("Evaluating\n#{PrettyPrinter.format(ast_node)}")
+    Logger.info("Scope\n#{PrettyPrinter.format(scope)}")
 
     case ast_node do
       {:integer, value} ->
@@ -29,8 +32,12 @@ defmodule Scrapex.Evaluator do
       {:text, value} ->
         {:ok, Value.text(value)}
 
-      {:variant, name, _} ->
-        {:ok, Value.variant(name)}
+      {:variant, tag, payload_expr} ->
+        # First, recursively evaluate the payload expression to get its value.
+        with {:ok, payload_value} <- eval(payload_expr, scope) do
+          # Then, use that resulting value to construct the final runtime variant.
+          {:ok, Value.variant(tag, payload_value)}
+        end
 
       {:hole} ->
         {:ok, Value.hole()}
@@ -315,6 +322,11 @@ defmodule Scrapex.Evaluator do
     end
   end
 
+  defp eval_binding({:typed_binding, name, _type_expr, expresssion}, scope) do
+    # Type checking is done in a separate step
+    eval_binding(AST.binding(name, expresssion), scope)
+  end
+
   # Function applications
 
   # Anonymous function
@@ -418,26 +430,36 @@ defmodule Scrapex.Evaluator do
   end
 
   defp pattern_matches(
-         {:variant_pattern, {:identifier, name}, p_payload_patterns},
-         {:variant, name, v_payload}
-       ) do
-    case {p_payload_patterns, v_payload} do
-      # Case for a pattern like `#none` that expects no payload,
-      # and a value that has no payload.
-      {[], nil} ->
-        {:ok, []}
-
-      # The main case: The pattern expects ONE payload (e.g., `[v]`),
-      # and the value has a payload.
-      {[single_payload_pattern], payload} when not is_nil(payload) ->
-        # We extract the single pattern from the list and match it
-        # against the value's payload.
-        pattern_matches(single_payload_pattern, payload)
-
-      # All other combinations are a mismatch.
-      _ ->
-        {:error, :no_match}
+         {:variant_pattern, {:identifier, p_tag}, [p_payload_pattern]},
+         {:variant, v_tag, v_payload}
+       )
+       when p_tag == v_tag do
+    # This is the main case for a pattern with a payload, like `#some v`.
+    # It should FAIL if the value's payload is a hole.
+    if v_payload == Value.hole() do
+      {:error, :no_match}
+    else
+      pattern_matches(p_payload_pattern, v_payload)
     end
+  end
+
+  defp pattern_matches(
+         {:variant_pattern, {:identifier, p_tag}, []},
+         {:variant, v_tag, v_payload}
+       )
+       when p_tag == v_tag do
+    # This is the case for a pattern with no payload, like `#none`.
+    # It should ONLY succeed if the value's payload is a hole.
+    if v_payload == Value.hole() do
+      {:ok, []}
+    else
+      {:error, :no_match}
+    end
+  end
+
+  # Add a catch-all for when tags don't match
+  defp pattern_matches({:variant_pattern, _, _}, {:variant, _, _}) do
+    {:error, :no_match}
   end
 
   defp pattern_matches({:wildcard}, _arg_value) do
